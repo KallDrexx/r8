@@ -1,0 +1,6 @@
+[package]
+name = "r8-core"
+version = "0.1.0"
+authors = ["KallDrexx <me@mshapiro.net>"]
+
+[dependencies]
