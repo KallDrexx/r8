@@ -10,6 +10,8 @@ pub struct Hardware {
     pub program_counter: u16,
     pub stack: [u16; STACK_SIZE],
     pub stack_pointer: usize,
+    pub current_key_down: Option<u8>,
+    pub key_released_since_last_instruction: Option<u8>,
 }
 
 impl Hardware {
@@ -23,6 +25,8 @@ impl Hardware {
             program_counter: 512, // First accessible memory location
             stack: [0; STACK_SIZE],
             stack_pointer: 0,
+            current_key_down: None,
+            key_released_since_last_instruction: None,
         }
     }
 }

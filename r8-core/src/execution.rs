@@ -69,6 +69,48 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             hardware.program_counter = final_address;
         }
 
+        Instruction::LoadFromValue {destination, value} => {
+            let reg_num = match destination {
+                Register::General(x) => x as usize,
+                _ => return  Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromValue {destination, value}}),
+            };
+
+            hardware.gen_registers[reg_num] = value;
+            hardware.program_counter = hardware.program_counter + 2;
+        }
+
+        Instruction::LoadFromRegister {destination, source} => {
+            let dest_register_num = match destination {
+                Register::General(x) => x as usize,
+                _ => return  Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromRegister {destination, source}}),
+            };
+
+            let source_register_num = match source {
+                Register::General(x) => x as usize,
+                _ => return  Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromRegister {destination, source}}),
+            };
+
+            hardware.gen_registers[dest_register_num] = hardware.gen_registers[source_register_num];
+            hardware.program_counter = hardware.program_counter + 2;
+        }
+
+        Instruction::LoadFromKeyPress {destination} => {
+            let reg_num = match destination {
+                Register::General(x) => x as usize,
+                _ => return  Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromKeyPress {destination}}),
+            };
+
+            // According to specs I have found this instruction does not recognize a key if it's
+            // currently down.  So it will wait (stay on the same program counter for our purposes)
+            // until the user releases the key, at which point for one execution
+            // `hardware.key_released_since_last_instruction` should have the key that was just released.
+
+            if let Some(key_num) = hardware.key_released_since_last_instruction {
+                hardware.gen_registers[reg_num] = key_num;
+                hardware.program_counter = hardware.program_counter + 2;
+            }
+        }
+
         _ => return Err(ExecutionError::UnhandleableInstruction{instruction})
     }
 
@@ -247,5 +289,66 @@ mod tests {
             ExecutionError::UnhandleableInstruction {instruction: _} => (),
             x => panic!("Expected UnhandleableInstruction, instead got {:?}", x),
         }
+    }
+
+    #[test]
+    fn can_load_from_value_into_general_register() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[4] = 10;
+
+        let instruction = Instruction::LoadFromValue {
+            destination: Register::General(4),
+            value: 123,
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.gen_registers[4], 123, "Incorrect value in register");
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+    }
+
+    #[test]
+    fn can_load_from_register_into_general_register() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[4] = 10;
+        hardware.gen_registers[5] = 122;
+
+        let instruction = Instruction::LoadFromRegister {
+            destination: Register::General(4),
+            source: Register::General(5),
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.gen_registers[4], 122, "Incorrect value in register");
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+    }
+
+    #[test]
+    fn load_from_key_press_does_not_progress_if_no_key_released() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[4] = 10;
+        hardware.current_key_down = Some(0x4);
+        hardware.key_released_since_last_instruction = None;
+
+        let instruction = Instruction::LoadFromKeyPress {destination: Register::General(4)};
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1000, "Incorrect program counter");
+        assert_eq!(hardware.gen_registers[4], 10, "Register 4 value should not have changed");
+    }
+
+    #[test]
+    fn load_from_key_press_proceeds_if_key_was_released() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[4] = 10;
+        hardware.current_key_down = None;
+        hardware.key_released_since_last_instruction = Some(0x5);
+
+        let instruction = Instruction::LoadFromKeyPress {destination: Register::General(4)};
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+        assert_eq!(hardware.gen_registers[4], 5, "Incorrect value in register");
     }
 }
