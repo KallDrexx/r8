@@ -1,3 +1,5 @@
+pub const STACK_SIZE: usize = 16;
+
 pub struct Hardware {
     pub memory: [u8; 4096],
     pub gen_registers: [u8; 16],
@@ -5,8 +7,8 @@ pub struct Hardware {
     pub sound_timer: u8,
     pub delay_timer: u8,
     pub program_counter: u16,
-    pub stack: [u16; 16],
-    pub stack_pointer: u8,
+    pub stack: [u16; STACK_SIZE],
+    pub stack_pointer: usize,
 }
 
 impl Hardware {
@@ -18,7 +20,7 @@ impl Hardware {
             sound_timer: 0,
             delay_timer: 0,
             program_counter: 512, // First accessible memory location
-            stack: [0; 16],
+            stack: [0; STACK_SIZE],
             stack_pointer: 0,
         }
     }
