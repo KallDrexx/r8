@@ -6,7 +6,7 @@ custom_error!{pub ExecutionError
     UnhandleableInstruction {instruction:Instruction} = "The instruction '{instruction}' is not known"
 }
 
-fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) -> Result<(), ExecutionError> {
+pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) -> Result<(), ExecutionError> {
     match instruction {
         Instruction::AddFromValue {register, value} => {
             match register {

@@ -8,6 +8,7 @@ use std::fmt;
 
 pub use hardware::Hardware;
 pub use parser::get_instruction;
+pub use execution::execute_instruction;
 
 // Info sourced from http://devernay.free.fr/hacks/chip8/C8TECH10.HTM#Fx33
 #[derive(Eq, PartialEq, Debug)]
@@ -30,7 +31,7 @@ pub enum Instruction {
     LoadFromValue { destination: Register, value: u8 },
     LoadFromRegister { destination: Register, source: Register },
     LoadFromKeyPress { destination: Register },
-    LoadSpriteLocation { destination: Register, sprite_digit: Register },
+    LoadSpriteLocation { sprite_digit: Register },
     LoadBcdValue { source: Register },
     LoadIntoMemory { last_register: Register },
     LoadFromMemory { last_register: Register },
@@ -80,7 +81,7 @@ impl fmt::Display for Instruction {
             Instruction::LoadFromValue {destination, value} => write!(f, "LD {}, {:x}", destination, value),
             Instruction::LoadFromRegister {destination, source} => write!(f, "LD {}, {}", destination, source),
             Instruction::LoadFromKeyPress {destination} => write!(f, "LD {}, K", destination),
-            Instruction::LoadSpriteLocation {destination, sprite_digit} => write!(f, "LD {}, {}", destination, sprite_digit),
+            Instruction::LoadSpriteLocation {sprite_digit} => write!(f, "LD F, {}", sprite_digit),
             Instruction::LoadBcdValue {source} => write!(f, "LD B, {}", source),
             Instruction::LoadIntoMemory {last_register} => write!(f, "LD [I], {}", last_register),
             Instruction::LoadFromMemory {last_register} => write!(f, "LD {}, [I]", last_register),

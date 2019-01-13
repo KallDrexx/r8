@@ -208,7 +208,6 @@ pub fn get_instruction(byte1: u8, byte2: u8) -> Instruction {
 
         (0xf, _, 0x2, 0x9) => {
             Instruction::LoadSpriteLocation {
-                destination: Register::I,
                 sprite_digit: Register::General(value2),
             }
         },
@@ -561,7 +560,6 @@ mod tests {
     #[test]
     fn can_read_load_from_sprite_location_instruction() {
         let expected = Instruction::LoadSpriteLocation {
-            destination: Register::I,
             sprite_digit: Register::General(0xb),
         };
 
