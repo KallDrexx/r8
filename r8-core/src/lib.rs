@@ -1,5 +1,10 @@
+extern crate custom_error;
+
 mod hardware;
 mod parser;
+mod execution;
+
+use std::fmt;
 
 pub use hardware::Hardware;
 pub use parser::get_instruction;
@@ -45,4 +50,61 @@ pub enum Instruction {
     ShiftLeft { register: Register},
     SetRandom { register: Register, and_value: u8 },
     DrawSprite { x_register: Register, y_register: Register, height: u8 },
+}
+
+impl fmt::Display for Register {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Register::General(num) => write!(f, "V{:x}", num),
+            Register::I => write!(f, "I"),
+            Register::SoundTimer => write!(f, "ST"),
+            Register::DelayTimer => write!(f, "DT"),
+        }
+    }
+}
+
+impl fmt::Display for Instruction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Instruction::Unknown => write!(f, "Unknown Instruction"),
+            Instruction::AddFromValue {register, value} => write!(f, "ADD {}, {}", register, value),
+            Instruction::AddFromRegister {register1, register2} => write!(f, "ADD {}, {}", register1, register2),
+            Instruction::Call {address} => write!(f, "CALL {:x}", address),
+            Instruction::ClearDisplay => write!(f, "CLS"),
+            Instruction::JumpToAddress {address, add_register_0} => match add_register_0 {
+                true => write!(f, "JP v0, {:x}", address),
+                false => write!(f, "JP {:x}", address)
+            },
+
+            Instruction::JumpToMachineCode {address} => write!(f, "SYS {:x}", address),
+            Instruction::LoadFromValue {destination, value} => write!(f, "LD {}, {:x}", destination, value),
+            Instruction::LoadFromRegister {destination, source} => write!(f, "LD {}, {}", destination, source),
+            Instruction::LoadFromKeyPress {destination} => write!(f, "LD {}, K", destination),
+            Instruction::LoadSpriteLocation {destination, sprite_digit} => write!(f, "LD {}, {}", destination, sprite_digit),
+            Instruction::LoadBcdValue {source} => write!(f, "LD B, {}", source),
+            Instruction::LoadIntoMemory {last_register} => write!(f, "LD [I], {}", last_register),
+            Instruction::LoadFromMemory {last_register} => write!(f, "LD {}, [I]", last_register),
+            Instruction::LoadAddressIntoIRegister {address} => write!(f, "LD I, {:x}", address),
+            Instruction::Return => write!(f, "RET"),
+            Instruction::SkipIfEqual {register, value} => write!(f, "SE {}, {:x}", register, value),
+            Instruction::SkipIfNotEqual {register, value} => write!(f, "SNE {}, {:x}", register, value),
+            Instruction::SkipIfRegistersEqual {register1, register2} => write!(f, "SE {}, {}", register1, register2),
+            Instruction::SkipIfRegistersNotEqual {register1, register2} => write!(f, "SNE {}, {}", register1, register2),
+            Instruction::SkipIfKeyPressed {register} => write!(f, "SKP {}", register),
+            Instruction::SkipIfKeyNotPressed {register} => write!(f, "SKNP {}", register),
+            Instruction::Subtract {register1, register2, stored_in} => if stored_in == register1 {
+                write!(f, "SUB {}, {}", register1, register2)
+            } else {
+                write!(f, "SUBN {}, {}", register1, register2)
+            },
+
+            Instruction::Or {register1, register2} => write!(f, "OR {}, {}", register1, register2),
+            Instruction::And {register1, register2} => write!(f, "AND {}, {}", register1, register2),
+            Instruction::Xor {register1, register2} => write!(f, "XOR {}, {}", register1, register2),
+            Instruction::ShiftRight {register} => write!(f, "SHR {}", register),
+            Instruction::ShiftLeft {register} => write!(f, "SHL {}", register),
+            Instruction::SetRandom {register, and_value} => write!(f, "RND {}, {:x}", register, and_value),
+            Instruction::DrawSprite {x_register, y_register, height} => write!(f, "DRW {}, {}, {:x}", x_register, y_register, height),
+        }
+    }
 }
