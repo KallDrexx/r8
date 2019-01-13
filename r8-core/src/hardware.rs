@@ -1,7 +1,8 @@
 pub const STACK_SIZE: usize = 16;
+pub const MEMORY_SIZE: usize = 0xFFF;
 
 pub struct Hardware {
-    pub memory: [u8; 4096],
+    pub memory: [u8; MEMORY_SIZE],
     pub gen_registers: [u8; 16],
     pub i_register: u16,
     pub sound_timer: u8,
@@ -14,7 +15,7 @@ pub struct Hardware {
 impl Hardware {
     pub fn new() -> Hardware {
         Hardware {
-            memory: [0_u8; 4096],
+            memory: [0_u8; MEMORY_SIZE],
             gen_registers: [0_u8; 16],
             i_register: 0,
             sound_timer: 0,

@@ -1,12 +1,12 @@
 use custom_error::custom_error;
 use ::{Hardware, Instruction, Register};
-use ::hardware::STACK_SIZE;
+use ::hardware::{STACK_SIZE, MEMORY_SIZE};
 
 custom_error!{pub ExecutionError
     InvalidRegisterForInstruction {instruction:Instruction} = "Invalid register was used for instruction: {instruction}",
     UnhandleableInstruction {instruction:Instruction} = "The instruction '{instruction}' is not known",
     StackOverflow = "Call exceeded maximum stack size",
-    InvalidCallAddress {address:u16} = "Call performed to invalid address {address}",
+    InvalidCallOrJumpAddress {address:u16} = "Call performed to invalid address {address}",
 }
 
 pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) -> Result<(), ExecutionError> {
@@ -48,12 +48,25 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             }
 
             if address % 2 != 0 {
-                return Err(ExecutionError::InvalidCallAddress {address});
+                return Err(ExecutionError::InvalidCallOrJumpAddress {address});
             }
 
             hardware.stack[hardware.stack_pointer] = hardware.program_counter;
             hardware.stack_pointer = hardware.stack_pointer + 1;
             hardware.program_counter = address;
+        }
+
+        Instruction::JumpToAddress {address, add_register_0} => {
+            let final_address = match add_register_0 {
+                true => address + hardware.gen_registers[0] as u16,
+                false => address
+            };
+
+            if final_address < 512 || final_address > MEMORY_SIZE as u16 || final_address % 2 != 0 {
+                return Err(ExecutionError::InvalidCallOrJumpAddress {address: final_address});
+            }
+
+            hardware.program_counter = final_address;
         }
 
         _ => return Err(ExecutionError::UnhandleableInstruction{instruction})
@@ -141,8 +154,98 @@ mod tests {
 
         let instruction = Instruction::Call {address: 1653};
         match execute_instruction(instruction, &mut hardware).unwrap_err() {
-            ExecutionError::InvalidCallAddress {address: 1653} => (),
-            x => panic!("Expected InvalidCallAddress {{address: 1653}}, instead got {:?}", x),
+            ExecutionError::InvalidCallOrJumpAddress {address: 1653} => (),
+            x => panic!("Expected InvalidCallOrJumpAddress {{address: 1653}}, instead got {:?}", x),
+        }
+    }
+
+    #[test]
+    fn can_call_jump_to_address_without_add() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1002;
+        hardware.gen_registers[0] = 10;
+        hardware.stack_pointer = 1;
+        hardware.stack[0] = 533;
+
+        let instruction = Instruction::JumpToAddress {address: 2330, add_register_0: false};
+        execute_instruction(instruction, &mut hardware).unwrap();
+
+        assert_eq!(hardware.program_counter, 2330, "Incorrect program counter value");
+        assert_eq!(hardware.stack_pointer, 1, "Incorrect stack pointer value"); // Make sure stack wasn't messed with
+        assert_eq!(hardware.stack[0], 533, "Incorrect stack[0] value");
+    }
+
+    #[test]
+    fn can_call_jump_address_with_add() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1002;
+        hardware.gen_registers[0] = 10;
+        hardware.stack_pointer = 1;
+        hardware.stack[0] = 533;
+
+        let instruction = Instruction::JumpToAddress {address: 2330, add_register_0: true};
+        execute_instruction(instruction, &mut hardware).unwrap();
+
+        assert_eq!(hardware.program_counter, 2340, "Incorrect program counter value");
+        assert_eq!(hardware.stack_pointer, 1, "Incorrect stack pointer value"); // Make sure stack wasn't messed with
+        assert_eq!(hardware.stack[0], 533, "Incorrect stack[0] value");
+    }
+
+    #[test]
+    fn cannot_jump_to_odd_address() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1002;
+        hardware.gen_registers[0] = 10;
+        hardware.stack_pointer = 1;
+        hardware.stack[0] = 533;
+
+        let instruction = Instruction::JumpToAddress {address: 2331, add_register_0: false};
+        match execute_instruction(instruction, &mut hardware).unwrap_err() {
+            ExecutionError::InvalidCallOrJumpAddress {address: 2331} => (),
+            x => panic!("Expected InvalidCallOrJumpAddress {{address: 2331}}, instead got {:?}", x),
+        }
+    }
+
+    #[test]
+    fn cannot_jump_to_address_below_512() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1002;
+        hardware.gen_registers[0] = 10;
+        hardware.stack_pointer = 1;
+        hardware.stack[0] = 533;
+
+        let instruction = Instruction::JumpToAddress {address: 511, add_register_0: false};
+        match execute_instruction(instruction, &mut hardware).unwrap_err() {
+            ExecutionError::InvalidCallOrJumpAddress {address: 511} => (),
+            x => panic!("Expected InvalidCallOrJumpAddress {{address: 2331}}, instead got {:?}", x),
+        }
+    }
+
+    #[test]
+    fn cannot_jump_to_address_above_memory_size() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1002;
+        hardware.gen_registers[0] = 10;
+        hardware.stack_pointer = 1;
+        hardware.stack[0] = 533;
+
+        let address = MEMORY_SIZE as u16 + 1;
+        let instruction = Instruction::JumpToAddress {address, add_register_0: false};
+        match execute_instruction(instruction, &mut hardware).unwrap_err() {
+            ExecutionError::InvalidCallOrJumpAddress {address: _} => (),
+            x => panic!("Expected InvalidCallOrJumpAddress {{address: {}}}, instead got {:?}", address, x),
+        }
+    }
+
+    #[test]
+    fn jump_to_machine_code_is_unhandled() {
+        // According to specs, SYS instructions are ignored by modern interpreters.
+
+        let mut hardware = Hardware::new();
+        let instruction = Instruction::JumpToMachineCode {address: 123};
+        match execute_instruction(instruction, &mut hardware).unwrap_err() {
+            ExecutionError::UnhandleableInstruction {instruction: _} => (),
+            x => panic!("Expected UnhandleableInstruction, instead got {:?}", x),
         }
     }
 }
