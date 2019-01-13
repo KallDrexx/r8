@@ -10,14 +10,32 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
     match instruction {
         Instruction::AddFromValue {register, value} => {
             match register {
-                Register::General(num) =>
-                    hardware.gen_registers[num as usize] = hardware.gen_registers[num as usize] + value,
+                Register::General(num) => {
+                    hardware.gen_registers[num as usize] = hardware.gen_registers[num as usize] + value;
+                    hardware.program_counter = hardware.program_counter + 2;
+                }
 
                 _ => return Err(ExecutionError::InvalidRegisterForInstruction {
                     instruction: Instruction::AddFromValue {register, value}
                 })
             }
+        }
 
+        Instruction::AddFromRegister {register1, register2} => {
+            let reg1_num = match register1 {
+                Register::General(x) => x,
+                _ => return  Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::AddFromRegister {register1, register2}}),
+            };
+
+            let reg2_num = match register2 {
+                Register::General(x) => x,
+                _ => return  Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::AddFromRegister {register1, register2}}),
+            };
+
+            let reg1_value = hardware.gen_registers[reg1_num as usize];
+            let reg2_value = hardware.gen_registers[reg2_num as usize];
+
+            hardware.gen_registers[reg1_num as usize] = reg1_value + reg2_value;
             hardware.program_counter = hardware.program_counter + 2;
         }
 
@@ -46,6 +64,25 @@ mod tests {
 
         execute_instruction(instruction, &mut hardware).unwrap();
         assert_eq!(hardware.gen_registers[REGISTER_NUMBER as usize], 112, "Invalid register value");
+        assert_eq!(hardware.program_counter, 1002, "Invalid resulting program counter");
+    }
+
+    #[test]
+    fn can_add_value_from_general_register() {
+        const REGISTER1_NUMBER: u8 = 4;
+        const REGISTER2_NUMBER: u8 = 6;
+        let mut hardware = Hardware::new();
+        hardware.gen_registers[REGISTER1_NUMBER as usize] = 100;
+        hardware.gen_registers[REGISTER2_NUMBER as usize] = 55;
+        hardware.program_counter = 1000;
+
+        let instruction = Instruction::AddFromRegister {
+            register1: Register::General(REGISTER1_NUMBER),
+            register2: Register::General(REGISTER2_NUMBER),
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.gen_registers[REGISTER1_NUMBER as usize], 155, "Invalid register value");
         assert_eq!(hardware.program_counter, 1002, "Invalid resulting program counter");
     }
 }
