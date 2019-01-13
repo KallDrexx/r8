@@ -78,7 +78,7 @@ pub fn get_instruction(byte1: u8, byte2: u8) -> Instruction {
                 register2: Register::General(value3),
             }
         },
-        
+
         (0x8, _, _, 0x2) => {
             Instruction::And {
                 register1: Register::General(value2),
@@ -329,7 +329,6 @@ mod tests {
         let result = get_instruction(0x7b, 0xcd);
         assert_eq!(result, expected);
     }
-
 
     #[test]
     fn can_read_load_from_register_instruction() {

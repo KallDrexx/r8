@@ -17,7 +17,7 @@ impl Hardware {
             i_register: 0,
             sound_timer: 0,
             delay_timer: 0,
-            program_counter: 0,
+            program_counter: 512, // First accessible memory location
             stack: [0; 16],
             stack_pointer: 0,
         }
