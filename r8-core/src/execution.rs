@@ -111,6 +111,21 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             }
         }
 
+        Instruction::LoadBcdValue {source} => {
+            let reg_num = match source {
+                Register::General(x) => x as usize,
+                _ => return  Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadBcdValue {source}}),
+            };
+
+            let start_address = hardware.i_register as usize;
+            let source_value = hardware.gen_registers[reg_num];
+
+            hardware.memory[start_address] = (source_value / 100) % 10;
+            hardware.memory[start_address + 1] = (source_value / 10) % 10;
+            hardware.memory[start_address + 2] = source_value % 10;
+            hardware.program_counter = hardware.program_counter + 2;
+        }
+
         _ => return Err(ExecutionError::UnhandleableInstruction{instruction})
     }
 
@@ -350,5 +365,20 @@ mod tests {
         execute_instruction(instruction, &mut hardware).unwrap();
         assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
         assert_eq!(hardware.gen_registers[4], 5, "Incorrect value in register");
+    }
+
+    #[test]
+    fn can_load_bcd_value_into_memory() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[5] = 235;
+        hardware.i_register = 1500;
+
+        let instruction = Instruction::LoadBcdValue {source: Register::General(5)};
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+        assert_eq!(hardware.memory[1500], 2, "Incorrect bcd value #1");
+        assert_eq!(hardware.memory[1501], 3, "Incorrect bcd value #2");
+        assert_eq!(hardware.memory[1502], 5, "Incorrect bcd value #3");
     }
 }
