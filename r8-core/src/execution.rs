@@ -7,6 +7,7 @@ custom_error!{pub ExecutionError
     UnhandleableInstruction {instruction:Instruction} = "The instruction '{instruction}' is not known",
     StackOverflow = "Call exceeded maximum stack size",
     InvalidCallOrJumpAddress {address:u16} = "Call performed to invalid address {address}",
+    EmptyStack = "Return was called with an empty stack",
 }
 
 pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) -> Result<(), ExecutionError> {
@@ -27,12 +28,12 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
         Instruction::AddFromRegister {register1, register2} => {
             let reg1_num = match register1 {
                 Register::General(x) => x,
-                _ => return  Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::AddFromRegister {register1, register2}}),
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::AddFromRegister {register1, register2}}),
             };
 
             let reg2_num = match register2 {
                 Register::General(x) => x,
-                _ => return  Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::AddFromRegister {register1, register2}}),
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::AddFromRegister {register1, register2}}),
             };
 
             let reg1_value = hardware.gen_registers[reg1_num as usize];
@@ -72,7 +73,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
         Instruction::LoadFromValue {destination, value} => {
             let reg_num = match destination {
                 Register::General(x) => x as usize,
-                _ => return  Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromValue {destination, value}}),
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromValue {destination, value}}),
             };
 
             hardware.gen_registers[reg_num] = value;
@@ -82,12 +83,12 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
         Instruction::LoadFromRegister {destination, source} => {
             let dest_register_num = match destination {
                 Register::General(x) => x as usize,
-                _ => return  Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromRegister {destination, source}}),
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromRegister {destination, source}}),
             };
 
             let source_register_num = match source {
                 Register::General(x) => x as usize,
-                _ => return  Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromRegister {destination, source}}),
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromRegister {destination, source}}),
             };
 
             hardware.gen_registers[dest_register_num] = hardware.gen_registers[source_register_num];
@@ -97,7 +98,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
         Instruction::LoadFromKeyPress {destination} => {
             let reg_num = match destination {
                 Register::General(x) => x as usize,
-                _ => return  Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromKeyPress {destination}}),
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromKeyPress {destination}}),
             };
 
             // According to specs I have found this instruction does not recognize a key if it's
@@ -114,7 +115,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
         Instruction::LoadBcdValue {source} => {
             let reg_num = match source {
                 Register::General(x) => x as usize,
-                _ => return  Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadBcdValue {source}}),
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadBcdValue {source}}),
             };
 
             let start_address = hardware.i_register as usize;
@@ -129,7 +130,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
         Instruction::LoadIntoMemory {last_register} => {
             let reg_num = match last_register {
                 Register::General(x) => x as usize,
-                _ => return  Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadIntoMemory {last_register}}),
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadIntoMemory {last_register}}),
             };
 
             for index in 0..=reg_num {
@@ -143,7 +144,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
         Instruction::LoadFromMemory {last_register} => {
             let reg_num = match last_register {
                 Register::General(x) => x as usize,
-                _ => return  Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromMemory {last_register}}),
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromMemory {last_register}}),
             };
 
             for index in 0..=reg_num {
@@ -152,6 +153,15 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
 
             hardware.i_register = hardware.i_register + reg_num as u16 + 1;
             hardware.program_counter = hardware.program_counter + 2;
+        }
+
+        Instruction::Return => {
+            if hardware.stack_pointer == 0 {
+                return Err(ExecutionError::EmptyStack);
+            }
+
+            hardware.program_counter = hardware.stack[hardware.stack_pointer - 1];
+            hardware.stack_pointer = hardware.stack_pointer - 1;
         }
 
         _ => return Err(ExecutionError::UnhandleableInstruction{instruction})
@@ -456,5 +466,35 @@ mod tests {
         assert_eq!(hardware.gen_registers[4], 104, "Incorrect value in register V4");
         assert_eq!(hardware.gen_registers[5], 0, "Incorrect value in register V5");
         assert_eq!(hardware.i_register, 938, "Incorrect resulting I register");
+    }
+
+    #[test]
+    fn can_execute_return_instruction() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.stack_pointer = 2;
+        hardware.stack[0] = 1500;
+        hardware.stack[1] = 938;
+        hardware.stack[2] = 1700; // residual from previous call
+
+        let instruction = Instruction::Return;
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 938, "Incorrect program pointer");
+        assert_eq!(hardware.stack_pointer, 1, "Incorrect stack pointer");
+    }
+
+    #[test]
+    fn cannot_execute_return_with_empty_stack() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.stack_pointer = 0;
+        hardware.stack[0] = 1500;
+        hardware.stack[1] = 938;
+
+        let instruction = Instruction::Return;
+        match execute_instruction(instruction, &mut hardware).unwrap_err() {
+            ExecutionError::EmptyStack => (),
+            x => panic!("Expected EmptyStack instead got {:?}", x),
+        }
     }
 }
