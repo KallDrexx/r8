@@ -126,6 +126,34 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             hardware.program_counter = hardware.program_counter + 2;
         }
 
+        Instruction::LoadIntoMemory {last_register} => {
+            let reg_num = match last_register {
+                Register::General(x) => x as usize,
+                _ => return  Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadIntoMemory {last_register}}),
+            };
+
+            for index in 0..=reg_num {
+                hardware.memory[hardware.i_register as usize + index] = hardware.gen_registers[index];
+            }
+
+            hardware.i_register = hardware.i_register + reg_num as u16 + 1;
+            hardware.program_counter = hardware.program_counter + 2;
+        }
+
+        Instruction::LoadFromMemory {last_register} => {
+            let reg_num = match last_register {
+                Register::General(x) => x as usize,
+                _ => return  Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromMemory {last_register}}),
+            };
+
+            for index in 0..=reg_num {
+                hardware.gen_registers[index] = hardware.memory[hardware.i_register as usize + index];
+            }
+
+            hardware.i_register = hardware.i_register + reg_num as u16 + 1;
+            hardware.program_counter = hardware.program_counter + 2;
+        }
+
         _ => return Err(ExecutionError::UnhandleableInstruction{instruction})
     }
 
@@ -380,5 +408,53 @@ mod tests {
         assert_eq!(hardware.memory[1500], 2, "Incorrect bcd value #1");
         assert_eq!(hardware.memory[1501], 3, "Incorrect bcd value #2");
         assert_eq!(hardware.memory[1502], 5, "Incorrect bcd value #3");
+    }
+
+    #[test]
+    fn can_load_register_values_into_memory() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[0] = 100;
+        hardware.gen_registers[1] = 101;
+        hardware.gen_registers[2] = 102;
+        hardware.gen_registers[3] = 103;
+        hardware.gen_registers[4] = 104;
+        hardware.gen_registers[5] = 105;
+        hardware.i_register = 933;
+
+        let instruction = Instruction::LoadIntoMemory {last_register: Register::General(4)};
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+        assert_eq!(hardware.memory[933], 100, "Incorrect value in memory location 0");
+        assert_eq!(hardware.memory[934], 101, "Incorrect value in memory location 1");
+        assert_eq!(hardware.memory[935], 102, "Incorrect value in memory location 2");
+        assert_eq!(hardware.memory[936], 103, "Incorrect value in memory location 3");
+        assert_eq!(hardware.memory[937], 104, "Incorrect value in memory location 4");
+        assert_eq!(hardware.memory[938], 0, "Incorrect value in memory location 5");
+        assert_eq!(hardware.i_register, 938, "Incorrect resulting I register");
+    }
+
+    #[test]
+    fn can_load_memory_into_multiple_register_values() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.i_register = 933;
+        hardware.memory[933] = 100;
+        hardware.memory[934] = 101;
+        hardware.memory[935] = 102;
+        hardware.memory[936] = 103;
+        hardware.memory[937] = 104;
+        hardware.memory[938] = 105;
+
+        let instruction = Instruction::LoadFromMemory {last_register: Register::General(4)};
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+        assert_eq!(hardware.gen_registers[0], 100, "Incorrect value in register V0");
+        assert_eq!(hardware.gen_registers[1], 101, "Incorrect value in register V1");
+        assert_eq!(hardware.gen_registers[2], 102, "Incorrect value in register V2");
+        assert_eq!(hardware.gen_registers[3], 103, "Incorrect value in register V3");
+        assert_eq!(hardware.gen_registers[4], 104, "Incorrect value in register V4");
+        assert_eq!(hardware.gen_registers[5], 0, "Incorrect value in register V5");
+        assert_eq!(hardware.i_register, 938, "Incorrect resulting I register");
     }
 }
