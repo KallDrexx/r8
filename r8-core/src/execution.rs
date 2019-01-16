@@ -258,6 +258,71 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             hardware.program_counter = hardware.program_counter + increment;
         }
 
+        Instruction::And {register1, register2} => {
+            let reg_num1 = match register1 {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::And {register1, register2}}),
+            };
+
+            let reg_num2 = match register2 {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::And {register1, register2}}),
+            };
+
+            hardware.gen_registers[reg_num1] = hardware.gen_registers[reg_num1] & hardware.gen_registers[reg_num2];
+            hardware.program_counter = hardware.program_counter + 2;
+        }
+
+        Instruction::Or {register1, register2} => {
+            let reg_num1 = match register1 {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::Or {register1, register2}}),
+            };
+
+            let reg_num2 = match register2 {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::Or {register1, register2}}),
+            };
+
+            hardware.gen_registers[reg_num1] = hardware.gen_registers[reg_num1] | hardware.gen_registers[reg_num2];
+            hardware.program_counter = hardware.program_counter + 2;
+        }
+
+        Instruction::Xor {register1, register2} => {
+            let reg_num1 = match register1 {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::Xor {register1, register2}}),
+            };
+
+            let reg_num2 = match register2 {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::Xor {register1, register2}}),
+            };
+
+            hardware.gen_registers[reg_num1] = hardware.gen_registers[reg_num1] ^ hardware.gen_registers[reg_num2];
+            hardware.program_counter = hardware.program_counter + 2;
+        }
+
+        Instruction::ShiftLeft {register} => {
+            let reg_num = match register {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::ShiftLeft {register}}),
+            };
+
+            hardware.gen_registers[reg_num] = hardware.gen_registers[reg_num] << 1;
+            hardware.program_counter = hardware.program_counter + 2;
+        }
+
+        Instruction::ShiftRight {register} => {
+            let reg_num = match register {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::ShiftRight {register}}),
+            };
+
+            hardware.gen_registers[reg_num] = hardware.gen_registers[reg_num] >> 1;
+            hardware.program_counter = hardware.program_counter + 2;
+        }
+
         _ => return Err(ExecutionError::UnhandleableInstruction{instruction})
     }
 
@@ -774,5 +839,89 @@ mod tests {
 
         execute_instruction(instruction, &mut hardware).unwrap();
         assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+    }
+
+    #[test]
+    fn can_or_register_values_together() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[2] = 123;
+        hardware.gen_registers[3] = 203;
+
+        let instruction = Instruction::Or {
+            register1: Register::General(3),
+            register2: Register::General(2),
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect hardware counter");
+        assert_eq!(hardware.gen_registers[2], 123, "Incorrect V2 value");
+        assert_eq!(hardware.gen_registers[3], 203 | 123, "Incorrect v3 value");
+    }
+
+    #[test]
+    fn can_and_register_values_together() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[2] = 123;
+        hardware.gen_registers[3] = 203;
+
+        let instruction = Instruction::And {
+            register1: Register::General(3),
+            register2: Register::General(2),
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect hardware counter");
+        assert_eq!(hardware.gen_registers[2], 123, "Incorrect V2 value");
+        assert_eq!(hardware.gen_registers[3], 203 & 123, "Incorrect v3 value");
+    }
+
+    #[test]
+    fn can_xor_register_values_together() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[2] = 123;
+        hardware.gen_registers[3] = 203;
+
+        let instruction = Instruction::Xor {
+            register1: Register::General(3),
+            register2: Register::General(2),
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect hardware counter");
+        assert_eq!(hardware.gen_registers[2], 123, "Incorrect V2 value");
+        assert_eq!(hardware.gen_registers[3], 203 ^ 123, "Incorrect v3 value");
+    }
+
+    #[test]
+    fn can_shift_register_value_right() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[3] = 203;
+
+        let instruction = Instruction::ShiftRight {
+            register: Register::General(3),
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect hardware counter");
+        assert_eq!(hardware.gen_registers[3], 203 >> 1, "Incorrect v3 value");
+    }
+
+    #[test]
+    fn can_shift_register_value_left() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[3] = 203;
+
+        let instruction = Instruction::ShiftLeft {
+            register: Register::General(3),
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect hardware counter");
+        assert_eq!(hardware.gen_registers[3], 203 << 1, "Incorrect v3 value");
     }
 }
