@@ -1,4 +1,5 @@
 extern crate custom_error;
+extern crate rand;
 
 mod hardware;
 mod parser;

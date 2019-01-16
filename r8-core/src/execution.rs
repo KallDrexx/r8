@@ -12,19 +12,6 @@ custom_error!{pub ExecutionError
 
 pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) -> Result<(), ExecutionError> {
     match instruction {
-        Instruction::AddFromValue {register, value} => {
-            match register {
-                Register::General(num) => {
-                    hardware.gen_registers[num as usize] = hardware.gen_registers[num as usize] + value;
-                    hardware.program_counter = hardware.program_counter + 2;
-                }
-
-                _ => return Err(ExecutionError::InvalidRegisterForInstruction {
-                    instruction: Instruction::AddFromValue {register, value}
-                })
-            }
-        }
-
         Instruction::AddFromRegister {register1, register2} => {
             let reg1_num = match register1 {
                 Register::General(x) => x,
@@ -40,6 +27,34 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             let reg2_value = hardware.gen_registers[reg2_num as usize];
 
             hardware.gen_registers[reg1_num as usize] = reg1_value + reg2_value;
+            hardware.program_counter = hardware.program_counter + 2;
+        }
+
+        Instruction::AddFromValue {register, value} => {
+            match register {
+                Register::General(num) => {
+                    hardware.gen_registers[num as usize] = hardware.gen_registers[num as usize] + value;
+                    hardware.program_counter = hardware.program_counter + 2;
+                }
+
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {
+                    instruction: Instruction::AddFromValue {register, value}
+                })
+            }
+        }
+
+        Instruction::And {register1, register2} => {
+            let reg_num1 = match register1 {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::And {register1, register2}}),
+            };
+
+            let reg_num2 = match register2 {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::And {register1, register2}}),
+            };
+
+            hardware.gen_registers[reg_num1] = hardware.gen_registers[reg_num1] & hardware.gen_registers[reg_num2];
             hardware.program_counter = hardware.program_counter + 2;
         }
 
@@ -70,28 +85,18 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             hardware.program_counter = final_address;
         }
 
-        Instruction::LoadFromValue {destination, value} => {
-            let reg_num = match destination {
+        Instruction::LoadBcdValue {source} => {
+            let reg_num = match source {
                 Register::General(x) => x as usize,
-                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromValue {destination, value}}),
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadBcdValue {source}}),
             };
 
-            hardware.gen_registers[reg_num] = value;
-            hardware.program_counter = hardware.program_counter + 2;
-        }
+            let start_address = hardware.i_register as usize;
+            let source_value = hardware.gen_registers[reg_num];
 
-        Instruction::LoadFromRegister {destination, source} => {
-            let dest_register_num = match destination {
-                Register::General(x) => x as usize,
-                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromRegister {destination, source}}),
-            };
-
-            let source_register_num = match source {
-                Register::General(x) => x as usize,
-                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromRegister {destination, source}}),
-            };
-
-            hardware.gen_registers[dest_register_num] = hardware.gen_registers[source_register_num];
+            hardware.memory[start_address] = (source_value / 100) % 10;
+            hardware.memory[start_address + 1] = (source_value / 10) % 10;
+            hardware.memory[start_address + 2] = source_value % 10;
             hardware.program_counter = hardware.program_counter + 2;
         }
 
@@ -112,18 +117,42 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             }
         }
 
-        Instruction::LoadBcdValue {source} => {
-            let reg_num = match source {
+        Instruction::LoadFromMemory {last_register} => {
+            let reg_num = match last_register {
                 Register::General(x) => x as usize,
-                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadBcdValue {source}}),
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromMemory {last_register}}),
             };
 
-            let start_address = hardware.i_register as usize;
-            let source_value = hardware.gen_registers[reg_num];
+            for index in 0..=reg_num {
+                hardware.gen_registers[index] = hardware.memory[hardware.i_register as usize + index];
+            }
 
-            hardware.memory[start_address] = (source_value / 100) % 10;
-            hardware.memory[start_address + 1] = (source_value / 10) % 10;
-            hardware.memory[start_address + 2] = source_value % 10;
+            hardware.i_register = hardware.i_register + reg_num as u16 + 1;
+            hardware.program_counter = hardware.program_counter + 2;
+        }
+
+        Instruction::LoadFromRegister {destination, source} => {
+            let dest_register_num = match destination {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromRegister {destination, source}}),
+            };
+
+            let source_register_num = match source {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromRegister {destination, source}}),
+            };
+
+            hardware.gen_registers[dest_register_num] = hardware.gen_registers[source_register_num];
+            hardware.program_counter = hardware.program_counter + 2;
+        }
+
+        Instruction::LoadFromValue {destination, value} => {
+            let reg_num = match destination {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromValue {destination, value}}),
+            };
+
+            hardware.gen_registers[reg_num] = value;
             hardware.program_counter = hardware.program_counter + 2;
         }
 
@@ -141,17 +170,18 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             hardware.program_counter = hardware.program_counter + 2;
         }
 
-        Instruction::LoadFromMemory {last_register} => {
-            let reg_num = match last_register {
+        Instruction::Or {register1, register2} => {
+            let reg_num1 = match register1 {
                 Register::General(x) => x as usize,
-                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromMemory {last_register}}),
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::Or {register1, register2}}),
             };
 
-            for index in 0..=reg_num {
-                hardware.gen_registers[index] = hardware.memory[hardware.i_register as usize + index];
-            }
+            let reg_num2 = match register2 {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::Or {register1, register2}}),
+            };
 
-            hardware.i_register = hardware.i_register + reg_num as u16 + 1;
+            hardware.gen_registers[reg_num1] = hardware.gen_registers[reg_num1] | hardware.gen_registers[reg_num2];
             hardware.program_counter = hardware.program_counter + 2;
         }
 
@@ -164,6 +194,36 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             hardware.stack_pointer = hardware.stack_pointer - 1;
         }
 
+        Instruction::SetRandom {register, and_value} => {
+            let reg_num = match register {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::SetRandom {register, and_value}}),
+            };
+
+            hardware.gen_registers[reg_num] = rand::random::<u8>() & and_value;
+            hardware.program_counter = hardware.program_counter + 2;
+        }
+
+        Instruction::ShiftLeft {register} => {
+            let reg_num = match register {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::ShiftLeft {register}}),
+            };
+
+            hardware.gen_registers[reg_num] = hardware.gen_registers[reg_num] << 1;
+            hardware.program_counter = hardware.program_counter + 2;
+        }
+
+        Instruction::ShiftRight {register} => {
+            let reg_num = match register {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::ShiftRight {register}}),
+            };
+
+            hardware.gen_registers[reg_num] = hardware.gen_registers[reg_num] >> 1;
+            hardware.program_counter = hardware.program_counter + 2;
+        }
+
         Instruction::SkipIfEqual {register, value} => {
             let reg_num = match register {
                 Register::General(x) => x as usize,
@@ -173,6 +233,34 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             let increment = match hardware.gen_registers[reg_num] == value {
                 true => 4,
                 false => 2,
+            };
+
+            hardware.program_counter = hardware.program_counter + increment;
+        }
+
+        Instruction::SkipIfKeyPressed {register} => {
+            let reg_num = match register {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::SkipIfKeyPressed {register}}),
+            };
+
+            let increment = match hardware.current_key_down {
+                Some(x) if x == hardware.gen_registers[reg_num] => 4,
+                _ => 2,
+            };
+
+            hardware.program_counter = hardware.program_counter + increment;
+        }
+
+        Instruction::SkipIfKeyNotPressed {register} => {
+            let reg_num = match register {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::SkipIfKeyNotPressed {register}}),
+            };
+
+            let increment = match hardware.current_key_down {
+                Some(x) if x == hardware.gen_registers[reg_num] => 2,
+                _ => 4,
             };
 
             hardware.program_counter = hardware.program_counter + increment;
@@ -230,64 +318,6 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             hardware.program_counter = hardware.program_counter + increment;
         }
 
-        Instruction::SkipIfKeyPressed {register} => {
-            let reg_num = match register {
-                Register::General(x) => x as usize,
-                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::SkipIfKeyPressed {register}}),
-            };
-
-            let increment = match hardware.current_key_down {
-                Some(x) if x == hardware.gen_registers[reg_num] => 4,
-                _ => 2,
-            };
-
-            hardware.program_counter = hardware.program_counter + increment;
-        }
-
-        Instruction::SkipIfKeyNotPressed {register} => {
-            let reg_num = match register {
-                Register::General(x) => x as usize,
-                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::SkipIfKeyNotPressed {register}}),
-            };
-
-            let increment = match hardware.current_key_down {
-                Some(x) if x == hardware.gen_registers[reg_num] => 2,
-                _ => 4,
-            };
-
-            hardware.program_counter = hardware.program_counter + increment;
-        }
-
-        Instruction::And {register1, register2} => {
-            let reg_num1 = match register1 {
-                Register::General(x) => x as usize,
-                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::And {register1, register2}}),
-            };
-
-            let reg_num2 = match register2 {
-                Register::General(x) => x as usize,
-                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::And {register1, register2}}),
-            };
-
-            hardware.gen_registers[reg_num1] = hardware.gen_registers[reg_num1] & hardware.gen_registers[reg_num2];
-            hardware.program_counter = hardware.program_counter + 2;
-        }
-
-        Instruction::Or {register1, register2} => {
-            let reg_num1 = match register1 {
-                Register::General(x) => x as usize,
-                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::Or {register1, register2}}),
-            };
-
-            let reg_num2 = match register2 {
-                Register::General(x) => x as usize,
-                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::Or {register1, register2}}),
-            };
-
-            hardware.gen_registers[reg_num1] = hardware.gen_registers[reg_num1] | hardware.gen_registers[reg_num2];
-            hardware.program_counter = hardware.program_counter + 2;
-        }
-
         Instruction::Xor {register1, register2} => {
             let reg_num1 = match register1 {
                 Register::General(x) => x as usize,
@@ -300,26 +330,6 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             };
 
             hardware.gen_registers[reg_num1] = hardware.gen_registers[reg_num1] ^ hardware.gen_registers[reg_num2];
-            hardware.program_counter = hardware.program_counter + 2;
-        }
-
-        Instruction::ShiftLeft {register} => {
-            let reg_num = match register {
-                Register::General(x) => x as usize,
-                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::ShiftLeft {register}}),
-            };
-
-            hardware.gen_registers[reg_num] = hardware.gen_registers[reg_num] << 1;
-            hardware.program_counter = hardware.program_counter + 2;
-        }
-
-        Instruction::ShiftRight {register} => {
-            let reg_num = match register {
-                Register::General(x) => x as usize,
-                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::ShiftRight {register}}),
-            };
-
-            hardware.gen_registers[reg_num] = hardware.gen_registers[reg_num] >> 1;
             hardware.program_counter = hardware.program_counter + 2;
         }
 
@@ -854,7 +864,7 @@ mod tests {
         };
 
         execute_instruction(instruction, &mut hardware).unwrap();
-        assert_eq!(hardware.program_counter, 1002, "Incorrect hardware counter");
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
         assert_eq!(hardware.gen_registers[2], 123, "Incorrect V2 value");
         assert_eq!(hardware.gen_registers[3], 203 | 123, "Incorrect v3 value");
     }
@@ -872,7 +882,7 @@ mod tests {
         };
 
         execute_instruction(instruction, &mut hardware).unwrap();
-        assert_eq!(hardware.program_counter, 1002, "Incorrect hardware counter");
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
         assert_eq!(hardware.gen_registers[2], 123, "Incorrect V2 value");
         assert_eq!(hardware.gen_registers[3], 203 & 123, "Incorrect v3 value");
     }
@@ -890,7 +900,7 @@ mod tests {
         };
 
         execute_instruction(instruction, &mut hardware).unwrap();
-        assert_eq!(hardware.program_counter, 1002, "Incorrect hardware counter");
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
         assert_eq!(hardware.gen_registers[2], 123, "Incorrect V2 value");
         assert_eq!(hardware.gen_registers[3], 203 ^ 123, "Incorrect v3 value");
     }
@@ -906,7 +916,7 @@ mod tests {
         };
 
         execute_instruction(instruction, &mut hardware).unwrap();
-        assert_eq!(hardware.program_counter, 1002, "Incorrect hardware counter");
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
         assert_eq!(hardware.gen_registers[3], 203 >> 1, "Incorrect v3 value");
     }
 
@@ -921,7 +931,34 @@ mod tests {
         };
 
         execute_instruction(instruction, &mut hardware).unwrap();
-        assert_eq!(hardware.program_counter, 1002, "Incorrect hardware counter");
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
         assert_eq!(hardware.gen_registers[3], 203 << 1, "Incorrect v3 value");
+    }
+
+    #[test]
+    fn can_get_random_number() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[3] = 100;
+
+        let instruction = Instruction::SetRandom {
+            register: Register::General(3),
+            and_value: 23,
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+
+        let value1 = hardware.gen_registers[3];
+
+        let instruction = Instruction::SetRandom {
+            register: Register::General(3),
+            and_value: 23,
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        let value2 = hardware.gen_registers[3];
+
+        assert_ne!(value1, value2, "Values 1 and 2 were the same (possibly not random??)");
     }
 }
