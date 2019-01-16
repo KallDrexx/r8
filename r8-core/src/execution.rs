@@ -164,6 +164,100 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             hardware.stack_pointer = hardware.stack_pointer - 1;
         }
 
+        Instruction::SkipIfEqual {register, value} => {
+            let reg_num = match register {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::SkipIfEqual {register, value}}),
+            };
+
+            let increment = match hardware.gen_registers[reg_num] == value {
+                true => 4,
+                false => 2,
+            };
+
+            hardware.program_counter = hardware.program_counter + increment;
+        }
+
+        Instruction::SkipIfNotEqual {register, value} => {
+            let reg_num = match register {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::SkipIfNotEqual {register, value}}),
+            };
+
+            let increment = match hardware.gen_registers[reg_num] == value {
+                true => 2,
+                false => 4,
+            };
+
+            hardware.program_counter = hardware.program_counter + increment;
+        }
+
+        Instruction::SkipIfRegistersEqual {register1, register2} => {
+            let reg_num1 = match register1 {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::SkipIfRegistersEqual {register1, register2}}),
+            };
+
+            let reg_num2 = match register2 {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::SkipIfRegistersEqual {register1, register2}}),
+            };
+
+            let increment = match hardware.gen_registers[reg_num1] == hardware.gen_registers[reg_num2]  {
+                true => 4,
+                false => 2,
+            };
+
+            hardware.program_counter = hardware.program_counter + increment;
+        }
+
+        Instruction::SkipIfRegistersNotEqual {register1, register2} => {
+            let reg_num1 = match register1 {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::SkipIfRegistersNotEqual {register1, register2}}),
+            };
+
+            let reg_num2 = match register2 {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::SkipIfRegistersNotEqual {register1, register2}}),
+            };
+
+            let increment = match hardware.gen_registers[reg_num1] == hardware.gen_registers[reg_num2]  {
+                true => 2,
+                false => 4,
+            };
+
+            hardware.program_counter = hardware.program_counter + increment;
+        }
+
+        Instruction::SkipIfKeyPressed {register} => {
+            let reg_num = match register {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::SkipIfKeyPressed {register}}),
+            };
+
+            let increment = match hardware.current_key_down {
+                Some(x) if x == hardware.gen_registers[reg_num] => 4,
+                _ => 2,
+            };
+
+            hardware.program_counter = hardware.program_counter + increment;
+        }
+
+        Instruction::SkipIfKeyNotPressed {register} => {
+            let reg_num = match register {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::SkipIfKeyNotPressed {register}}),
+            };
+
+            let increment = match hardware.current_key_down {
+                Some(x) if x == hardware.gen_registers[reg_num] => 2,
+                _ => 4,
+            };
+
+            hardware.program_counter = hardware.program_counter + increment;
+        }
+
         _ => return Err(ExecutionError::UnhandleableInstruction{instruction})
     }
 
@@ -496,5 +590,189 @@ mod tests {
             ExecutionError::EmptyStack => (),
             x => panic!("Expected EmptyStack instead got {:?}", x),
         }
+    }
+
+    #[test]
+    fn skip_occurs_when_skip_if_equal_passes() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[5] = 23;
+
+        let instruction = Instruction::SkipIfEqual {
+            register: Register::General(5),
+            value: 23,
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1004, "Incorrect program counter");
+    }
+
+    #[test]
+    fn does_not_skip_when_skip_if_equal_fails() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[5] = 23;
+
+        let instruction = Instruction::SkipIfEqual {
+            register: Register::General(5),
+            value: 24,
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+    }
+
+    #[test]
+    fn skip_occurs_when_skip_if_not_equal_passes() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[5] = 23;
+
+        let instruction = Instruction::SkipIfNotEqual {
+            register: Register::General(5),
+            value: 25,
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1004, "Incorrect program counter");
+    }
+
+    #[test]
+    fn does_not_skip_occurs_when_skip_if_not_equal_fails() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[5] = 23;
+
+        let instruction = Instruction::SkipIfNotEqual {
+            register: Register::General(5),
+            value: 23,
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+    }
+
+    #[test]
+    fn skip_occurs_when_skip_if_register_equals_passes() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[4] = 23;
+        hardware.gen_registers[5] = 23;
+
+        let instruction = Instruction::SkipIfRegistersEqual {
+            register1: Register::General(5),
+            register2: Register::General(4),
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1004, "Incorrect program counter");
+    }
+
+    #[test]
+    fn does_not_skip_occurs_when_skip_if_register_equals_fails() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[4] = 25;
+        hardware.gen_registers[5] = 23;
+
+        let instruction = Instruction::SkipIfRegistersEqual {
+            register1: Register::General(5),
+            register2: Register::General(4),
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+    }
+
+    #[test]
+    fn skip_occurs_when_skip_if_register_not_equals_passes() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[4] = 25;
+        hardware.gen_registers[5] = 23;
+
+        let instruction = Instruction::SkipIfRegistersNotEqual {
+            register1: Register::General(5),
+            register2: Register::General(4),
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1004, "Incorrect program counter");
+    }
+
+    #[test]
+    fn does_not_skip_occurs_when_skip_if_register_not_equals_fails() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[4] = 23;
+        hardware.gen_registers[5] = 23;
+
+        let instruction = Instruction::SkipIfRegistersNotEqual {
+            register1: Register::General(5),
+            register2: Register::General(4),
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+    }
+
+    #[test]
+    fn skip_occurs_when_skip_if_key_pressed_passes() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[5] = 10;
+        hardware.current_key_down = Some(10);
+
+        let instruction = Instruction::SkipIfKeyPressed {
+            register: Register::General(5),
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1004, "Incorrect program counter");
+    }
+
+    #[test]
+    fn does_not_skip_occurs_when_skip_if_key_pressed_fails() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[5] = 10;
+        hardware.current_key_down = Some(11);
+
+        let instruction = Instruction::SkipIfKeyPressed {
+            register: Register::General(5),
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+    }
+
+    #[test]
+    fn skip_occurs_when_skip_if_key_not_pressed_passes() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[5] = 10;
+        hardware.current_key_down = Some(11);
+
+        let instruction = Instruction::SkipIfKeyNotPressed {
+            register: Register::General(5),
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1004, "Incorrect program counter");
+    }
+
+    #[test]
+    fn does_not_skip_occurs_when_skip_if_key_not_pressed_fails() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[5] = 10;
+        hardware.current_key_down = Some(10);
+
+        let instruction = Instruction::SkipIfKeyNotPressed {
+            register: Register::General(5),
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
     }
 }
