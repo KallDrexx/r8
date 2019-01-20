@@ -25,22 +25,21 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
 
             let reg1_value = hardware.gen_registers[reg1_num as usize];
             let reg2_value = hardware.gen_registers[reg2_num as usize];
+            let will_wrap = reg1_value > 0 && std::u8::MAX - reg1_value < reg2_value;;
 
-            hardware.gen_registers[reg1_num as usize] = reg1_value + reg2_value;
+            hardware.gen_registers[reg1_num as usize] = reg1_value.wrapping_add(reg2_value);
+            hardware.gen_registers[0xf] = if will_wrap { 1 } else { 0};
             hardware.program_counter = hardware.program_counter + 2;
         }
 
         Instruction::AddFromValue {register, value} => {
-            match register {
-                Register::General(num) => {
-                    hardware.gen_registers[num as usize] = hardware.gen_registers[num as usize] + value;
-                    hardware.program_counter = hardware.program_counter + 2;
-                }
+            let reg_num = match register {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::AddFromValue {register, value}}),
+            };
 
-                _ => return Err(ExecutionError::InvalidRegisterForInstruction {
-                    instruction: Instruction::AddFromValue {register, value}
-                })
-            }
+            hardware.gen_registers[reg_num] = hardware.gen_registers[reg_num].wrapping_add(value);
+            hardware.program_counter = hardware.program_counter + 2;
         }
 
         Instruction::And {register1, register2} => {
@@ -318,6 +317,29 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             hardware.program_counter = hardware.program_counter + increment;
         }
 
+        Instruction::Subtract {minuend, subtrahend, stored_in} => {
+            let minuend_reg = match minuend {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::Subtract {minuend, subtrahend, stored_in}}),
+            };
+
+            let subtrahend_reg = match subtrahend {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::Subtract {minuend, subtrahend, stored_in}}),
+            };
+
+            let stored_in_reg = match stored_in {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::Subtract {minuend, subtrahend, stored_in}}),
+            };
+
+            let will_underflow = hardware.gen_registers[minuend_reg] < hardware.gen_registers[subtrahend_reg];
+            let difference = hardware.gen_registers[minuend_reg].wrapping_sub(hardware.gen_registers[subtrahend_reg]);
+            hardware.gen_registers[stored_in_reg] = difference;
+            hardware.gen_registers[0xf] = if will_underflow { 1 } else { 0 };
+            hardware.program_counter = hardware.program_counter + 2;
+        }
+
         Instruction::Xor {register1, register2} => {
             let reg_num1 = match register1 {
                 Register::General(x) => x as usize,
@@ -362,7 +384,25 @@ mod tests {
     }
 
     #[test]
-    fn can_add_value_from_general_register() {
+    fn can_add_value_to_general_register_that_overflows() {
+        const REGISTER_NUMBER: u8 = 3;
+        let mut hardware = Hardware::new();
+        hardware.gen_registers[REGISTER_NUMBER as usize] = 100;
+        hardware.program_counter = 1000;
+
+        let instruction = Instruction::AddFromValue {
+            register: Register::General(REGISTER_NUMBER),
+            value: 165,
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.gen_registers[REGISTER_NUMBER as usize], 9, "Invalid register value");
+        assert_eq!(hardware.program_counter, 1002, "Invalid resulting program counter");
+        assert_eq!(hardware.gen_registers[0xf], 0, "Add by value should not have caused carry mark");
+    }
+
+    #[test]
+    fn can_add_value_from_general_register_without_carry() {
         const REGISTER1_NUMBER: u8 = 4;
         const REGISTER2_NUMBER: u8 = 6;
         let mut hardware = Hardware::new();
@@ -377,6 +417,27 @@ mod tests {
 
         execute_instruction(instruction, &mut hardware).unwrap();
         assert_eq!(hardware.gen_registers[REGISTER1_NUMBER as usize], 155, "Invalid register value");
+        assert_eq!(hardware.gen_registers[0xf], 0, "Invalid VF register value");
+        assert_eq!(hardware.program_counter, 1002, "Invalid resulting program counter");
+    }
+
+    #[test]
+    fn can_add_value_from_general_register_with_carry() {
+        const REGISTER1_NUMBER: u8 = 4;
+        const REGISTER2_NUMBER: u8 = 6;
+        let mut hardware = Hardware::new();
+        hardware.gen_registers[REGISTER1_NUMBER as usize] = 200;
+        hardware.gen_registers[REGISTER2_NUMBER as usize] = 65;
+        hardware.program_counter = 1000;
+
+        let instruction = Instruction::AddFromRegister {
+            register1: Register::General(REGISTER1_NUMBER),
+            register2: Register::General(REGISTER2_NUMBER),
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.gen_registers[REGISTER1_NUMBER as usize], 9, "Invalid register value");
+        assert_eq!(hardware.gen_registers[0xf], 1, "Invalid VF register value");
         assert_eq!(hardware.program_counter, 1002, "Invalid resulting program counter");
     }
 
@@ -960,5 +1021,45 @@ mod tests {
         let value2 = hardware.gen_registers[3];
 
         assert_ne!(value1, value2, "Values 1 and 2 were the same (possibly not random??)");
+    }
+
+    #[test]
+    fn can_subtract_register_without_underflow() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[4] = 100;
+        hardware.gen_registers[5] = 25;
+
+        let instruction = Instruction::Subtract {
+            minuend: Register::General(4),
+            subtrahend: Register::General(5),
+            stored_in: Register::General(4),
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+        assert_eq!(hardware.gen_registers[4], 75, "Incorrect V4 register");
+        assert_eq!(hardware.gen_registers[5], 25, "Incorrect V5 register");
+        assert_eq!(hardware.gen_registers[0xf], 0, "Incorrect VF register");
+    }
+
+    #[test]
+    fn can_subtract_register_with_underflow() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[4] = 100;
+        hardware.gen_registers[5] = 25;
+
+        let instruction = Instruction::Subtract {
+            minuend: Register::General(5),
+            subtrahend: Register::General(4),
+            stored_in: Register::General(5),
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+        assert_eq!(hardware.gen_registers[4], 100, "Incorrect V4 register");
+        assert_eq!(hardware.gen_registers[5], 181, "Incorrect V5 register");
+        assert_eq!(hardware.gen_registers[0xf], 1, "Incorrect VF register");
     }
 }

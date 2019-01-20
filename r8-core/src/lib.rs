@@ -44,7 +44,7 @@ pub enum Instruction {
     SkipIfRegistersNotEqual { register1: Register, register2: Register },
     SkipIfKeyPressed { register: Register },
     SkipIfKeyNotPressed { register: Register },
-    Subtract { register1: Register, register2: Register, stored_in: Register },
+    Subtract { minuend: Register, subtrahend: Register, stored_in: Register },
     Or { register1: Register, register2: Register },
     And { register1: Register, register2: Register },
     Xor { register1: Register, register2: Register },
@@ -94,10 +94,10 @@ impl fmt::Display for Instruction {
             Instruction::SkipIfRegistersNotEqual {register1, register2} => write!(f, "SNE {}, {}", register1, register2),
             Instruction::SkipIfKeyPressed {register} => write!(f, "SKP {}", register),
             Instruction::SkipIfKeyNotPressed {register} => write!(f, "SKNP {}", register),
-            Instruction::Subtract {register1, register2, stored_in} => if stored_in == register1 {
-                write!(f, "SUB {}, {}", register1, register2)
+            Instruction::Subtract {minuend, subtrahend, stored_in} => if stored_in == minuend {
+                write!(f, "SUB {}, {}", minuend, subtrahend)
             } else {
-                write!(f, "SUBN {}, {}", register1, register2)
+                write!(f, "SUBN {}, {}", minuend, subtrahend)
             },
 
             Instruction::Or {register1, register2} => write!(f, "OR {}, {}", register1, register2),

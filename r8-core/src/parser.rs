@@ -102,8 +102,8 @@ pub fn get_instruction(byte1: u8, byte2: u8) -> Instruction {
 
         (0x8, _, _, 0x5) => {
             Instruction::Subtract {
-                register1: Register::General(value2),
-                register2: Register::General(value3),
+                minuend: Register::General(value2),
+                subtrahend: Register::General(value3),
                 stored_in: Register::General(value2),
             }
         },
@@ -116,8 +116,8 @@ pub fn get_instruction(byte1: u8, byte2: u8) -> Instruction {
 
         (0x8, _, _, 0x7) => {
             Instruction::Subtract {
-                register1: Register::General(value3),
-                register2: Register::General(value2),
+                minuend: Register::General(value3),
+                subtrahend: Register::General(value2),
                 stored_in: Register::General(value2),
             }
         },
@@ -387,8 +387,8 @@ mod tests {
     #[test]
     fn can_read_subtract_register_y_from_x_instruction() {
         let expected = Instruction::Subtract {
-            register1: Register::General(0xb),
-            register2: Register::General(0xc),
+            minuend: Register::General(0xb),
+            subtrahend: Register::General(0xc),
             stored_in: Register::General(0xb)
         };
 
@@ -399,8 +399,8 @@ mod tests {
     #[test]
     fn can_read_subtract_register_x_from_y_instruction() {
         let expected = Instruction::Subtract {
-            register1: Register::General(0xc),
-            register2: Register::General(0xb),
+            minuend: Register::General(0xc),
+            subtrahend: Register::General(0xb),
             stored_in: Register::General(0xb)
         };
 
