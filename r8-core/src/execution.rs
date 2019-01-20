@@ -8,6 +8,7 @@ custom_error!{pub ExecutionError
     StackOverflow = "Call exceeded maximum stack size",
     InvalidCallOrJumpAddress {address:u16} = "Call performed to invalid address {address}",
     EmptyStack = "Return was called with an empty stack",
+    InvalidFontDigit {digit: u8} = "Font digit of {digit} is invalid, only 0-f is allowed",
 }
 
 pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) -> Result<(), ExecutionError> {
@@ -69,6 +70,16 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             hardware.stack[hardware.stack_pointer] = hardware.program_counter;
             hardware.stack_pointer = hardware.stack_pointer + 1;
             hardware.program_counter = address;
+        }
+
+        Instruction::ClearDisplay => {
+            for x in 0..hardware.framebuffer.len() {
+                for y in 0..hardware.framebuffer[x].len() {
+                    hardware.framebuffer[x][y] = 0;
+                }
+            }
+
+            hardware.program_counter = hardware.program_counter + 2;
         }
 
         Instruction::JumpToAddress {address, add_register_0} => {
@@ -166,6 +177,21 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             }
 
             hardware.i_register = hardware.i_register + reg_num as u16 + 1;
+            hardware.program_counter = hardware.program_counter + 2;
+        }
+
+        Instruction::LoadSpriteLocation {sprite_digit} => {
+            let reg_num = match sprite_digit {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadSpriteLocation {sprite_digit}}),
+            };
+
+            let digit = hardware.gen_registers[reg_num];
+            if digit > 0xf {
+                return Err(ExecutionError::InvalidFontDigit {digit});
+            }
+
+            hardware.i_register = hardware.font_addresses[&digit];
             hardware.program_counter = hardware.program_counter + 2;
         }
 
@@ -1061,5 +1087,40 @@ mod tests {
         assert_eq!(hardware.gen_registers[4], 100, "Incorrect V4 register");
         assert_eq!(hardware.gen_registers[5], 181, "Incorrect V5 register");
         assert_eq!(hardware.gen_registers[0xf], 1, "Incorrect VF register");
+    }
+
+    #[test]
+    fn can_clear_display() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        for x in 0..hardware.framebuffer.len() {
+            for y in 0..hardware.framebuffer[x].len() {
+                hardware.framebuffer[x][y] = 0xFF;
+            }
+        }
+
+        let instruction = Instruction::ClearDisplay;
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+
+        for x in 0..hardware.framebuffer.len() {
+            for y in 0..hardware.framebuffer[x].len() {
+                if hardware.framebuffer[x][y] != 0 {
+                    panic!("Expected frame buffer by {}x{} to be 0", x, y);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn can_load_digit_sprite_location() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[4] = 0xa;
+
+        let instruction = Instruction::LoadSpriteLocation {sprite_digit: Register::General(4)};
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+        assert_eq!(hardware.i_register, hardware.font_addresses[&0xa], "Incorrect sprite address");
     }
 }
