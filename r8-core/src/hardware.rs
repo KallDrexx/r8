@@ -3,6 +3,8 @@ use std::collections::HashMap;
 const FONT_MEMORY_START_ADDRESS: u16 = 0x0;
 pub const STACK_SIZE: usize = 16;
 pub const MEMORY_SIZE: usize = 0xFFF;
+pub const FRAMEBUFFER_WIDTH: usize = 64;
+pub const FRAMEBUFFER_HEIGHT: usize = 32;
 
 pub struct Hardware {
     pub memory: [u8; MEMORY_SIZE],
@@ -15,7 +17,7 @@ pub struct Hardware {
     pub stack_pointer: usize,
     pub current_key_down: Option<u8>,
     pub key_released_since_last_instruction: Option<u8>,
-    pub framebuffer: [[u8; 8]; 16], // up to 128x64 pixel resolution,
+    pub framebuffer: [[u8; FRAMEBUFFER_WIDTH / 8]; FRAMEBUFFER_HEIGHT], // up to 64x32 pixel resolution,
     pub font_addresses: HashMap<u8, u16>,
 }
 
@@ -32,7 +34,7 @@ impl Hardware {
             stack_pointer: 0,
             current_key_down: None,
             key_released_since_last_instruction: None,
-            framebuffer: [[0; 8]; 16],
+            framebuffer: [[0; FRAMEBUFFER_WIDTH / 8]; FRAMEBUFFER_HEIGHT],
             font_addresses: HashMap::new(),
         };
 

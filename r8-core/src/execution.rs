@@ -1,6 +1,6 @@
 use custom_error::custom_error;
 use ::{Hardware, Instruction, Register};
-use ::hardware::{STACK_SIZE, MEMORY_SIZE};
+use ::hardware::{STACK_SIZE, MEMORY_SIZE, FRAMEBUFFER_HEIGHT, FRAMEBUFFER_WIDTH};
 
 custom_error!{pub ExecutionError
     InvalidRegisterForInstruction {instruction:Instruction} = "Invalid register was used for instruction: {instruction}",
@@ -82,6 +82,59 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             hardware.program_counter = hardware.program_counter + 2;
         }
 
+        Instruction::DrawSprite {x_register, y_register, height} => {
+            let x_reg_num = match x_register {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::DrawSprite {x_register, y_register, height}}),
+            };
+
+            let y_reg_num = match y_register {
+                Register::General(x) => x as usize,
+                _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::DrawSprite {x_register, y_register, height}}),
+            };
+
+            let first_row = hardware.gen_registers[y_reg_num] as usize;
+            let first_pixel = hardware.gen_registers[x_reg_num] as usize;
+            let shift_amount = first_pixel % 8;
+
+            let left_column_set = first_pixel / 8;
+
+            // According to the Cowgod spec, if the right column set would be out of bounds it
+            // wraps to the other side on the same row
+            let right_column_set = (left_column_set + 1) % (FRAMEBUFFER_WIDTH / 8);
+
+            let mut collisions_found = false;
+            for x in 0..height as usize {
+                let sprite_byte = hardware.memory[hardware.i_register as usize + x];
+                let left_byte = sprite_byte >> shift_amount;
+
+                // According to Cowgod spec, if we've gone past the screen in height then wrap to the top
+                let row = (first_row + x) % FRAMEBUFFER_HEIGHT;
+
+                // Detect if the xor will reset any already on pixels
+                if hardware.framebuffer[row][left_column_set] & left_byte > 0 {
+                    collisions_found = true;
+                }
+
+                // Update framebuffer
+                hardware.framebuffer[row][left_column_set] ^= left_byte;
+
+                // If we are affecting pixels across column set boundaries, repeat for the next byte
+                if shift_amount > 0 {
+                    let right_byte = (sprite_byte & 0b00000011) << 8 - shift_amount;
+
+                    if hardware.framebuffer[row][right_column_set] & right_byte > 0 {
+                        collisions_found = true;
+                    }
+
+                    hardware.framebuffer[row][right_column_set] ^= right_byte;
+                }
+            }
+
+            hardware.program_counter += 2;
+            hardware.gen_registers[0xf] = if collisions_found { 1 } else { 0 };
+        }
+
         Instruction::JumpToAddress {address, add_register_0} => {
             let final_address = match add_register_0 {
                 true => address + hardware.gen_registers[0] as u16,
@@ -93,6 +146,11 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             }
 
             hardware.program_counter = final_address;
+        }
+
+        Instruction::LoadAddressIntoIRegister {address} => {
+            hardware.i_register = address;
+            hardware.program_counter = hardware.program_counter + 2;
         }
 
         Instruction::LoadBcdValue {source} => {
@@ -1122,5 +1180,153 @@ mod tests {
         execute_instruction(instruction, &mut hardware).unwrap();
         assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
         assert_eq!(hardware.i_register, hardware.font_addresses[&0xa], "Incorrect sprite address");
+    }
+
+    #[test]
+    fn can_load_address_into_i_register() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+
+        let instruction = Instruction::LoadAddressIntoIRegister {address: 0x123};
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+        assert_eq!(hardware.i_register, 0x123, "Incorrect I register value");
+    }
+
+    #[test]
+    fn visible_8_x_3_sprite_to_screen_on_x_multiple_of_8_can_be_drawn() {
+        const SPRITE_START_ADDRESS: usize = 1046;
+        const X_POS: u8 = 16;
+        const Y_POS: u8 = 2;
+
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.i_register = SPRITE_START_ADDRESS as u16;
+        hardware.gen_registers[4] = X_POS;
+        hardware.gen_registers[3] = Y_POS;
+        hardware.memory[SPRITE_START_ADDRESS] = 0b10101010;
+        hardware.memory[SPRITE_START_ADDRESS + 1] = 0b01010101;
+        hardware.memory[SPRITE_START_ADDRESS + 2] = 0b11001101;
+        hardware.memory[SPRITE_START_ADDRESS + 3] = 0b11111111;
+
+        let instruction = Instruction::DrawSprite {
+            x_register: Register::General(4),
+            y_register: Register::General(3),
+            height: 3,
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+        assert_eq!(hardware.gen_registers[0xf], 0, "Incorrect VF value");
+        assert_eq!(hardware.framebuffer[2][2], 0b10101010, "Incorrect framebuffer value at row 2 column byte 2");
+        assert_eq!(hardware.framebuffer[3][2], 0b01010101, "Incorrect framebuffer value at row 3 column byte 2");
+        assert_eq!(hardware.framebuffer[4][2], 0b11001101, "Incorrect framebuffer value at row 4 column byte 2");
+        assert_eq!(hardware.framebuffer[5][2], 0, "Incorrect framebuffer value at row 5 column byte 2");
+    }
+
+    #[test]
+    fn visible_8_x_3_sprite_to_screen_on_x_non_multiple_of_8_can_be_drawn() {
+        const SPRITE_START_ADDRESS: usize = 1046;
+        const X_POS: u8 = 18;
+        const Y_POS: u8 = 2;
+
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.i_register = SPRITE_START_ADDRESS as u16;
+        hardware.gen_registers[4] = X_POS;
+        hardware.gen_registers[3] = Y_POS;
+        hardware.memory[SPRITE_START_ADDRESS] = 0b10101010;
+        hardware.memory[SPRITE_START_ADDRESS + 1] = 0b01010101;
+        hardware.memory[SPRITE_START_ADDRESS + 2] = 0b11001101;
+        hardware.memory[SPRITE_START_ADDRESS + 3] = 0b11111111;
+
+        let instruction = Instruction::DrawSprite {
+            x_register: Register::General(4),
+            y_register: Register::General(3),
+            height: 3,
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+        assert_eq!(hardware.gen_registers[0xf], 0, "Incorrect VF value");
+        assert_eq!(hardware.framebuffer[2][2], 0b00101010, "Incorrect framebuffer value at row 2 column byte 2");
+        assert_eq!(hardware.framebuffer[2][3], 0b10000000, "Incorrect framebuffer value at row 2 column byte 3");
+        assert_eq!(hardware.framebuffer[3][2], 0b00010101, "Incorrect framebuffer value at row 3 column byte 2");
+        assert_eq!(hardware.framebuffer[3][3], 0b01000000, "Incorrect framebuffer value at row 3 column byte 3");
+        assert_eq!(hardware.framebuffer[4][2], 0b00110011, "Incorrect framebuffer value at row 4 column byte 2");
+        assert_eq!(hardware.framebuffer[4][3], 0b01000000, "Incorrect framebuffer value at row 4 column byte 3");
+        assert_eq!(hardware.framebuffer[5][2], 0, "Incorrect framebuffer value at row 5 column byte 2");
+        assert_eq!(hardware.framebuffer[5][3], 0, "Incorrect framebuffer value at row 5 column byte 3");
+    }
+
+    #[test]
+    fn sprites_xor_existing_framebuffer_values() {
+        const SPRITE_START_ADDRESS: usize = 1046;
+        const X_POS: u8 = 18;
+        const Y_POS: u8 = 2;
+
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.i_register = SPRITE_START_ADDRESS as u16;
+        hardware.gen_registers[4] = X_POS;
+        hardware.gen_registers[3] = Y_POS;
+        hardware.memory[SPRITE_START_ADDRESS] = 0b10101010;
+        hardware.memory[SPRITE_START_ADDRESS + 1] = 0b01010101;
+        hardware.memory[SPRITE_START_ADDRESS + 2] = 0b11001101;
+        hardware.framebuffer[2][2] = 0xFF;
+        hardware.framebuffer[2][3] = 0xFF;
+
+        let instruction = Instruction::DrawSprite {
+            x_register: Register::General(4),
+            y_register: Register::General(3),
+            height: 3,
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+        assert_eq!(hardware.gen_registers[0xf], 1, "Incorrect VF value");
+        assert_eq!(hardware.framebuffer[2][2], 0b00101010 ^ 0xFF, "Incorrect framebuffer value at row 2 column byte 2");
+        assert_eq!(hardware.framebuffer[2][3], 0b10000000 ^ 0xFF, "Incorrect framebuffer value at row 2 column byte 3");
+        assert_eq!(hardware.framebuffer[3][2], 0b00010101, "Incorrect framebuffer value at row 3 column byte 2");
+        assert_eq!(hardware.framebuffer[3][3], 0b01000000, "Incorrect framebuffer value at row 3 column byte 3");
+        assert_eq!(hardware.framebuffer[4][2], 0b00110011, "Incorrect framebuffer value at row 4 column byte 2");
+        assert_eq!(hardware.framebuffer[4][3], 0b01000000, "Incorrect framebuffer value at row 4 column byte 3");
+        assert_eq!(hardware.framebuffer[5][2], 0, "Incorrect framebuffer value at row 5 column byte 2");
+        assert_eq!(hardware.framebuffer[5][3], 0, "Incorrect framebuffer value at row 5 column byte 3");
+    }
+
+    #[test]
+    fn partially_visibe_sprite_wraps_across_both_axis() {
+        const SPRITE_START_ADDRESS: usize = 1046;
+        const X_POS: u8 = 58;
+        const Y_POS: u8 = 30;
+
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.i_register = SPRITE_START_ADDRESS as u16;
+        hardware.gen_registers[4] = X_POS;
+        hardware.gen_registers[3] = Y_POS;
+        hardware.memory[SPRITE_START_ADDRESS] = 0b10101010;
+        hardware.memory[SPRITE_START_ADDRESS + 1] = 0b01010101;
+        hardware.memory[SPRITE_START_ADDRESS + 2] = 0b11001101;
+        hardware.memory[SPRITE_START_ADDRESS + 3] = 0b11111111;
+
+        let instruction = Instruction::DrawSprite {
+            x_register: Register::General(4),
+            y_register: Register::General(3),
+            height: 3,
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+        assert_eq!(hardware.gen_registers[0xf], 0, "Incorrect VF value");
+        assert_eq!(hardware.framebuffer[30][7], 0b00101010, "Incorrect framebuffer value at row 30 column byte 7");
+        assert_eq!(hardware.framebuffer[30][0], 0b10000000, "Incorrect framebuffer value at row 30 column byte 0");
+        assert_eq!(hardware.framebuffer[31][7], 0b00010101, "Incorrect framebuffer value at row 31 column byte 7");
+        assert_eq!(hardware.framebuffer[31][0], 0b01000000, "Incorrect framebuffer value at row 31 column byte 0");
+        assert_eq!(hardware.framebuffer[0][7], 0b00110011, "Incorrect framebuffer value at row 0 column byte 7");
+        assert_eq!(hardware.framebuffer[0][0], 0b01000000, "Incorrect framebuffer value at row 0 column byte 0");
+        assert_eq!(hardware.framebuffer[1][7], 0, "Incorrect framebuffer value at row 1 column byte 7");
+        assert_eq!(hardware.framebuffer[1][0], 0, "Incorrect framebuffer value at row 1 column byte 0");
     }
 }
