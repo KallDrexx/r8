@@ -30,7 +30,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
 
             hardware.gen_registers[reg1_num as usize] = reg1_value.wrapping_add(reg2_value);
             hardware.gen_registers[0xf] = if will_wrap { 1 } else { 0};
-            hardware.program_counter = hardware.program_counter + 2;
+            hardware.program_counter += 2;
         }
 
         Instruction::AddFromValue {register, value} => {
@@ -40,7 +40,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             };
 
             hardware.gen_registers[reg_num] = hardware.gen_registers[reg_num].wrapping_add(value);
-            hardware.program_counter = hardware.program_counter + 2;
+            hardware.program_counter += 2;
         }
 
         Instruction::And {register1, register2} => {
@@ -55,7 +55,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             };
 
             hardware.gen_registers[reg_num1] = hardware.gen_registers[reg_num1] & hardware.gen_registers[reg_num2];
-            hardware.program_counter = hardware.program_counter + 2;
+            hardware.program_counter += 2;
         }
 
         Instruction::Call {address} => {
@@ -79,7 +79,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
                 }
             }
 
-            hardware.program_counter = hardware.program_counter + 2;
+            hardware.program_counter += 2;
         }
 
         Instruction::DrawSprite {x_register, y_register, height} => {
@@ -150,7 +150,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
 
         Instruction::LoadAddressIntoIRegister {address} => {
             hardware.i_register = address;
-            hardware.program_counter = hardware.program_counter + 2;
+            hardware.program_counter += 2;
         }
 
         Instruction::LoadBcdValue {source} => {
@@ -165,7 +165,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             hardware.memory[start_address] = (source_value / 100) % 10;
             hardware.memory[start_address + 1] = (source_value / 10) % 10;
             hardware.memory[start_address + 2] = source_value % 10;
-            hardware.program_counter = hardware.program_counter + 2;
+            hardware.program_counter += 2;
         }
 
         Instruction::LoadFromKeyPress {destination} => {
@@ -181,7 +181,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
 
             if let Some(key_num) = hardware.key_released_since_last_instruction {
                 hardware.gen_registers[reg_num] = key_num;
-                hardware.program_counter = hardware.program_counter + 2;
+                hardware.program_counter += 2;
             }
         }
 
@@ -196,7 +196,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             }
 
             hardware.i_register = hardware.i_register + reg_num as u16 + 1;
-            hardware.program_counter = hardware.program_counter + 2;
+            hardware.program_counter += 2;
         }
 
         Instruction::LoadFromRegister {destination, source} => {
@@ -211,7 +211,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             };
 
             hardware.gen_registers[dest_register_num] = hardware.gen_registers[source_register_num];
-            hardware.program_counter = hardware.program_counter + 2;
+            hardware.program_counter += 2;
         }
 
         Instruction::LoadFromValue {destination, value} => {
@@ -221,7 +221,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             };
 
             hardware.gen_registers[reg_num] = value;
-            hardware.program_counter = hardware.program_counter + 2;
+            hardware.program_counter += 2;
         }
 
         Instruction::LoadIntoMemory {last_register} => {
@@ -235,7 +235,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             }
 
             hardware.i_register = hardware.i_register + reg_num as u16 + 1;
-            hardware.program_counter = hardware.program_counter + 2;
+            hardware.program_counter += 2;
         }
 
         Instruction::LoadSpriteLocation {sprite_digit} => {
@@ -250,7 +250,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             }
 
             hardware.i_register = hardware.font_addresses[&digit];
-            hardware.program_counter = hardware.program_counter + 2;
+            hardware.program_counter += 2;
         }
 
         Instruction::Or {register1, register2} => {
@@ -265,7 +265,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             };
 
             hardware.gen_registers[reg_num1] = hardware.gen_registers[reg_num1] | hardware.gen_registers[reg_num2];
-            hardware.program_counter = hardware.program_counter + 2;
+            hardware.program_counter += 2;
         }
 
         Instruction::Return => {
@@ -284,7 +284,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             };
 
             hardware.gen_registers[reg_num] = rand::random::<u8>() & and_value;
-            hardware.program_counter = hardware.program_counter + 2;
+            hardware.program_counter += 2;
         }
 
         Instruction::ShiftLeft {register} => {
@@ -294,7 +294,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             };
 
             hardware.gen_registers[reg_num] = hardware.gen_registers[reg_num] << 1;
-            hardware.program_counter = hardware.program_counter + 2;
+            hardware.program_counter += 2;
         }
 
         Instruction::ShiftRight {register} => {
@@ -304,7 +304,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             };
 
             hardware.gen_registers[reg_num] = hardware.gen_registers[reg_num] >> 1;
-            hardware.program_counter = hardware.program_counter + 2;
+            hardware.program_counter += 2;
         }
 
         Instruction::SkipIfEqual {register, value} => {
@@ -318,7 +318,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
                 false => 2,
             };
 
-            hardware.program_counter = hardware.program_counter + increment;
+            hardware.program_counter += increment;
         }
 
         Instruction::SkipIfKeyPressed {register} => {
@@ -332,7 +332,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
                 _ => 2,
             };
 
-            hardware.program_counter = hardware.program_counter + increment;
+            hardware.program_counter += increment;
         }
 
         Instruction::SkipIfKeyNotPressed {register} => {
@@ -346,7 +346,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
                 _ => 4,
             };
 
-            hardware.program_counter = hardware.program_counter + increment;
+            hardware.program_counter += increment;
         }
 
         Instruction::SkipIfNotEqual {register, value} => {
@@ -360,7 +360,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
                 false => 4,
             };
 
-            hardware.program_counter = hardware.program_counter + increment;
+            hardware.program_counter += increment;
         }
 
         Instruction::SkipIfRegistersEqual {register1, register2} => {
@@ -379,7 +379,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
                 false => 2,
             };
 
-            hardware.program_counter = hardware.program_counter + increment;
+            hardware.program_counter += increment;
         }
 
         Instruction::SkipIfRegistersNotEqual {register1, register2} => {
@@ -398,7 +398,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
                 false => 4,
             };
 
-            hardware.program_counter = hardware.program_counter + increment;
+            hardware.program_counter += increment;
         }
 
         Instruction::Subtract {minuend, subtrahend, stored_in} => {
@@ -421,7 +421,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             let difference = hardware.gen_registers[minuend_reg].wrapping_sub(hardware.gen_registers[subtrahend_reg]);
             hardware.gen_registers[stored_in_reg] = difference;
             hardware.gen_registers[0xf] = if will_underflow { 1 } else { 0 };
-            hardware.program_counter = hardware.program_counter + 2;
+            hardware.program_counter += 2;
         }
 
         Instruction::Xor {register1, register2} => {
@@ -436,7 +436,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             };
 
             hardware.gen_registers[reg_num1] = hardware.gen_registers[reg_num1] ^ hardware.gen_registers[reg_num2];
-            hardware.program_counter = hardware.program_counter + 2;
+            hardware.program_counter += 2;
         }
 
         _ => return Err(ExecutionError::UnhandleableInstruction{instruction})
