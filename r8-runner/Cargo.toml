@@ -1,0 +1,9 @@
+[package]
+name = "r8-runner"
+version = "0.1.0"
+authors = ["KallDrexx <me@mshapiro.net>"]
+edition = "2018"
+
+[dependencies]
+r8-core = { path = "../r8-core" }
+sfml = "0.14.0"

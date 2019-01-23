@@ -1,4 +1,5 @@
 [workspace]
 members = [
 	"r8-core",
+	"r8-runner",
 ]
