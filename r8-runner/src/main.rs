@@ -1,22 +1,18 @@
 extern crate sfml;
 extern crate r8_core;
 
+mod rendering;
+
 use sfml::window::{Event, Style};
-use sfml::system::Vector2f;
-use sfml::graphics::{RenderWindow, Color, RenderTarget};
-use sfml::graphics::{RectangleShape, Shape, Transformable, Image, Sprite, Texture};
-use sfml::graphics::{Font, Text};
+use sfml::graphics::{RenderWindow, Font};
 
 use r8_core::{Hardware, Instruction, Register};
-
-const PLAY_AREA_SCALING_FACTOR: u32 = 8;
-const PLAY_AREA_START_X: u32 = 50;
-const PLAY_AREA_START_Y: u32 = 0;
 
 fn main() {
     let mut hardware = Hardware::new();
     setup_hardware(&mut hardware);
 
+    let font = Font::from_file("cour.ttf").unwrap();
     let mut window = RenderWindow::new((800, 600), "R8 Runner - Chip 8", Style::CLOSE, &Default::default());
     window.set_framerate_limit(60);
 
@@ -27,12 +23,7 @@ fn main() {
             }
         }
 
-        window.set_active(true);
-        window.clear(&Color::BLACK);
-        render_framebuffer(&mut window, &hardware);
-        render_registers(&mut window, &hardware);
-
-        window.display();
+        rendering::render(&mut window, &mut hardware, &font);
     }
 }
 
@@ -53,6 +44,29 @@ fn setup_hardware(hardware: &mut Hardware) {
     draw_digit(hardware, 0xd, 40, 10);
     draw_digit(hardware, 0xe, 48, 10);
     draw_digit(hardware, 0xf, 56, 10);
+
+    // Set up some assembly in memory to test memory display
+    hardware.memory[512] = 0x00; hardware.memory[513] = 0xe0; // cls
+    hardware.memory[514] = 0x74; hardware.memory[515] = 0x1f; // add
+    hardware.memory[516] = 0x63; hardware.memory[517] = 0x4a; // ld vx, byte
+    hardware.memory[518] = 0x84; hardware.memory[519] = 0x30; // ld vx, vy
+    hardware.memory[520] = 0x84; hardware.memory[521] = 0x32; // and
+    hardware.memory[522] = 0x84; hardware.memory[523] = 0x35; // sub
+    hardware.memory[524] = 0xb1; hardware.memory[525] = 0x23; // jp
+    hardware.memory[526] = 0xd4; hardware.memory[527] = 0x39; // draw
+    hardware.memory[528] = 0x00; hardware.memory[529] = 0xe0; // cls
+    hardware.memory[530] = 0x74; hardware.memory[531] = 0x1f; // add
+    hardware.memory[532] = 0x63; hardware.memory[533] = 0x4a; // ld vx, byte
+    hardware.memory[534] = 0x84; hardware.memory[535] = 0x30; // ld vx, vy
+    hardware.memory[536] = 0x84; hardware.memory[537] = 0x32; // and
+    hardware.memory[538] = 0x84; hardware.memory[539] = 0x35; // sub
+    hardware.memory[540] = 0xb1; hardware.memory[541] = 0x23; // jp
+    hardware.memory[542] = 0xd4; hardware.memory[543] = 0x39; // draw
+
+    hardware.program_counter = 518;
+    hardware.i_register = 0x1F2;
+    hardware.delay_timer = 0x5;
+    hardware.sound_timer = 0x9;
 }
 
 fn draw_digit(hardware: &mut Hardware, digit: u8, start_x: u8, start_y: u8) {
@@ -67,70 +81,4 @@ fn draw_digit(hardware: &mut Hardware, digit: u8, start_x: u8, start_y: u8) {
     r8_core::execute_instruction(load_start_x, hardware).unwrap();
     r8_core::execute_instruction(load_start_y, hardware).unwrap();
     r8_core::execute_instruction(draw, hardware).unwrap();
-}
-
-fn render_framebuffer(window: &mut RenderWindow, hardware: &Hardware) {
-    let width = hardware.framebuffer[0].len() as u32 * 8 * PLAY_AREA_SCALING_FACTOR; // * 8 to expand byte compaction
-    let height = hardware.framebuffer.len() as u32 * PLAY_AREA_SCALING_FACTOR;
-
-    // First display the play area and border
-    let mut shape = RectangleShape::new();
-    shape.set_size(Vector2f::new(width as f32, height as f32));
-    shape.set_position(Vector2f::new(PLAY_AREA_START_X as f32, PLAY_AREA_START_Y as f32));
-    shape.set_fill_color(&Color::BLACK);
-    shape.set_outline_color(&Color::BLUE);
-    shape.set_outline_thickness(5_f32);
-    window.draw(&shape);
-
-    // Now add the actual framebuffer
-    let mut image = Image::new(width, height);
-    let mut current_y = 0;
-    let mut current_x = 0;
-    for row in 0..hardware.framebuffer.len() {
-        for column_set in 0..hardware.framebuffer[row].len() {
-            const BIT_MASK: u8 = 0b0000001;
-            let byte = hardware.framebuffer[row][column_set];
-            for shift in 0..8 {
-                let pixel_on = if (byte >> (7 - shift)) & BIT_MASK == 1 { true } else { false };
-                for scale_y in 0..PLAY_AREA_SCALING_FACTOR {
-                    for scale_x in 0..PLAY_AREA_SCALING_FACTOR {
-                        let color = if pixel_on { &Color::GREEN } else { &Color::BLACK };
-                        image.set_pixel(scale_x + current_x, scale_y + current_y, color);
-                    }
-                }
-
-                current_x += PLAY_AREA_SCALING_FACTOR;
-            }
-        }
-
-        current_y += PLAY_AREA_SCALING_FACTOR;
-        current_x = 0;
-    }
-
-    let texture = Texture::from_image(&image).unwrap();
-    let mut sprite = Sprite::new();
-    sprite.set_texture(&texture, false);
-    sprite.set_position(Vector2f::new(PLAY_AREA_START_X as f32, PLAY_AREA_START_Y as f32));
-    window.draw(&sprite);
-}
-
-fn render_registers(window: &mut RenderWindow, hardware: &Hardware) {
-    let font = Font::from_file("sansation.ttf").unwrap();
-
-    const START_Y: u32 = 300;
-    let mut current_x = 0;
-    let mut current_y = START_Y;
-    for gen_reg in 0..hardware.gen_registers.len() {
-        let str = format!("V{:x}: 0x{:x}", gen_reg, hardware.gen_registers[gen_reg]);
-        let mut text = Text::new(str.as_ref(), &font, 25);
-        text.set_position(Vector2f::new(current_x as f32, current_y as f32));
-        window.draw(&text);
-
-        current_y += 30;
-
-        if current_y + 25 > 600 {
-            current_y = START_Y;
-            current_x += 125;
-        }
-    }
 }
