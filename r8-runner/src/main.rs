@@ -3,7 +3,7 @@ extern crate r8_core;
 
 mod rendering;
 
-use sfml::window::{Event, Style};
+use sfml::window::{Event, Style, Key};
 use sfml::graphics::{RenderWindow, Font};
 
 use r8_core::{Hardware, Instruction, Register};
@@ -18,8 +18,11 @@ fn main() {
 
     while window.is_open() {
         while let Some(event) = window.poll_event() {
-            if event == Event::Closed {
-                window.close();
+            match event {
+                Event::Closed => window.close(),
+                Event::KeyPressed {code, alt: _, ctrl: _, shift: _, system: _} => handle_key_pressed(&mut hardware, code),
+                Event::KeyReleased {code, alt: _, ctrl: _, shift: _, system: _} => handle_key_released(&mut hardware, code),
+                _ => (),
             }
         }
 
@@ -82,4 +85,44 @@ fn draw_digit(hardware: &mut Hardware, digit: u8, start_x: u8, start_y: u8) {
     r8_core::execute_instruction(load_start_x, hardware).unwrap();
     r8_core::execute_instruction(load_start_y, hardware).unwrap();
     r8_core::execute_instruction(draw, hardware).unwrap();
+}
+
+fn handle_key_pressed(hardware: &mut Hardware, key: Key) {
+    match get_key_value(key) {
+        Some(x) => hardware.current_key_down = Some(x),
+        None => (),
+    }
+}
+
+fn handle_key_released(hardware: &mut Hardware, key: Key) {
+    match get_key_value(key) {
+        Some(x) => if hardware.current_key_down == Some(x) {
+            hardware.current_key_down = None;
+            hardware.key_released_since_last_instruction = Some(x);
+        },
+
+        None => (),
+    }
+}
+
+fn get_key_value(key: Key) -> Option<u8> {
+    match key {
+        Key::Num1 => Some(1),
+        Key::Num2 => Some(2),
+        Key::Num3 => Some(3),
+        Key::Q => Some(4),
+        Key::W => Some(5),
+        Key::E => Some(6),
+        Key::A => Some(7),
+        Key::S => Some(8),
+        Key::D => Some(9),
+        Key::Z => Some(0xa),
+        Key::X => Some(0),
+        Key::C => Some(0xb),
+        Key::Num4 => Some(0xc),
+        Key::R => Some(0xd),
+        Key::F => Some(0xe),
+        Key::V => Some(0xf),
+        _ => None,
+    }
 }

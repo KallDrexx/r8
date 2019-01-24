@@ -84,9 +84,13 @@ fn render_registers(window: &mut RenderWindow, hardware: &Hardware, font: &Font)
     let st_string = format!("ST: {:0>2x}", hardware.sound_timer);
     let i_string = format!("I : {:0>3x}", hardware.i_register);
 
+    let key_down_code = if let Some(x) = hardware.current_key_down {format!("{:x}", x)} else { "".to_owned() };
+    let input_string = format!("Key: {}", key_down_code);
+
     render_register_value(window, font, dt_string, &mut current_x, &mut current_y);
     render_register_value(window, font, st_string, &mut current_x, &mut current_y);
     render_register_value(window, font, i_string, &mut current_x, &mut current_y);
+    render_register_value(window, font, input_string, &mut current_x, &mut current_y);
 }
 
 fn render_register_value(window: &mut RenderWindow, font: &Font, display: String, current_x: &mut u32, current_y: &mut u32) {
