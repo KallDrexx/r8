@@ -200,17 +200,20 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
         }
 
         Instruction::LoadFromRegister {destination, source} => {
-            let dest_register_num = match destination {
-                Register::General(x) => x as usize,
+            let source_value = match source {
+                Register::General(num) => hardware.gen_registers[num as usize],
+                Register::SoundTimer => hardware.sound_timer,
+                Register::DelayTimer => hardware.delay_timer,
                 _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromRegister {destination, source}}),
             };
 
-            let source_register_num = match source {
-                Register::General(x) => x as usize,
+            match destination {
+                Register::General(num) => hardware.gen_registers[num as usize] = source_value,
+                Register::SoundTimer => hardware.sound_timer = source_value,
+                Register::DelayTimer => hardware.delay_timer = source_value,
                 _ => return Err(ExecutionError::InvalidRegisterForInstruction {instruction: Instruction::LoadFromRegister {destination, source}}),
-            };
+            }
 
-            hardware.gen_registers[dest_register_num] = hardware.gen_registers[source_register_num];
             hardware.program_counter += 2;
         }
 
@@ -1296,7 +1299,7 @@ mod tests {
     }
 
     #[test]
-    fn partially_visibe_sprite_wraps_across_both_axis() {
+    fn partially_visible_sprite_wraps_across_both_axis() {
         const SPRITE_START_ADDRESS: usize = 1046;
         const X_POS: u8 = 58;
         const Y_POS: u8 = 30;
@@ -1328,5 +1331,59 @@ mod tests {
         assert_eq!(hardware.framebuffer[0][0], 0b01000000, "Incorrect framebuffer value at row 0 column byte 0");
         assert_eq!(hardware.framebuffer[1][7], 0, "Incorrect framebuffer value at row 1 column byte 7");
         assert_eq!(hardware.framebuffer[1][0], 0, "Incorrect framebuffer value at row 1 column byte 0");
+    }
+
+    #[test]
+    fn can_set_gen_register_to_delay_timer_value() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[3] = 25;
+        hardware.delay_timer = 50;
+
+        let instruction = Instruction::LoadFromRegister {
+            source: Register::DelayTimer,
+            destination: Register::General(3),
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+        assert_eq!(hardware.gen_registers[3], 50, "Incorrect VX value");
+        assert_eq!(hardware.delay_timer, 50, "Incorrect delay timer value");
+    }
+
+    #[test]
+    fn can_set_delay_timer_to_value_in_general_register() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[3] = 25;
+        hardware.delay_timer = 50;
+
+        let instruction = Instruction::LoadFromRegister {
+            source: Register::General(3),
+            destination: Register::DelayTimer,
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+        assert_eq!(hardware.gen_registers[3], 25, "Incorrect VX value");
+        assert_eq!(hardware.delay_timer, 25, "Incorrect delay timer value");
+    }
+
+    #[test]
+    fn can_set_sound_timer_to_value_in_general_register() {
+        let mut hardware = Hardware::new();
+        hardware.program_counter = 1000;
+        hardware.gen_registers[3] = 25;
+        hardware.sound_timer = 50;
+
+        let instruction = Instruction::LoadFromRegister {
+            source: Register::General(3),
+            destination: Register::SoundTimer,
+        };
+
+        execute_instruction(instruction, &mut hardware).unwrap();
+        assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
+        assert_eq!(hardware.gen_registers[3], 25, "Incorrect VX value");
+        assert_eq!(hardware.sound_timer, 25, "Incorrect delay timer value");
     }
 }

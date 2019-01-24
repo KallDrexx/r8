@@ -42,6 +42,11 @@ impl Hardware {
         hardware
     }
 
+    pub fn simulate_timer_tick(&mut self) {
+        self.delay_timer = if self.delay_timer > 0 { self.delay_timer - 1 } else { 0 };
+        self.sound_timer = if self.sound_timer > 0 { self.sound_timer - 1 } else { 0 };
+    }
+
     fn load_fonts(&mut self) {
         let zero = [0xf0, 0x90, 0x90, 0x90, 0xf0];
         let one = [0x20, 0x60, 0x20, 0x20, 0x70];

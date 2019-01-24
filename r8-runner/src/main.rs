@@ -23,6 +23,7 @@ fn main() {
             }
         }
 
+        hardware.simulate_timer_tick();
         rendering::render(&mut window, &mut hardware, &font);
     }
 }
@@ -65,8 +66,8 @@ fn setup_hardware(hardware: &mut Hardware) {
 
     hardware.program_counter = 518;
     hardware.i_register = 0x1F2;
-    hardware.delay_timer = 0x5;
-    hardware.sound_timer = 0x9;
+    hardware.delay_timer = 0xFF;
+    hardware.sound_timer = 0xFF;
 }
 
 fn draw_digit(hardware: &mut Hardware, digit: u8, start_x: u8, start_y: u8) {
