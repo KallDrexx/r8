@@ -7,3 +7,4 @@ edition = "2018"
 [dependencies]
 r8-core = { path = "../r8-core" }
 sfml = "0.14.0"
+clap = {version = "2.32.0", features = ["yaml"]}

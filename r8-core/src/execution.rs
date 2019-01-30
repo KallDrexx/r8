@@ -276,7 +276,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
                 return Err(ExecutionError::EmptyStack);
             }
 
-            hardware.program_counter = hardware.stack[hardware.stack_pointer - 1];
+            hardware.program_counter = hardware.stack[hardware.stack_pointer - 1] + 2;
             hardware.stack_pointer = hardware.stack_pointer - 1;
         }
 
@@ -796,7 +796,7 @@ mod tests {
 
         let instruction = Instruction::Return;
         execute_instruction(instruction, &mut hardware).unwrap();
-        assert_eq!(hardware.program_counter, 938, "Incorrect program pointer");
+        assert_eq!(hardware.program_counter, 938 + 2, "Incorrect program pointer");
         assert_eq!(hardware.stack_pointer, 1, "Incorrect stack pointer");
     }
 

@@ -1,0 +1,17 @@
+name: r8-runner
+version: "1.0"
+args:
+  - INPUT:
+      help: Sets the input file to use
+      required: true
+      index: 1
+  - paused:
+      help: Starts the interpreterr paused for debug mode
+      short: p
+      long: start-paused
+      takes_value: false
+  - ipf:
+      help: Number of instructions to execute per frame
+      long: ipf
+      short: f
+      takes_value: true

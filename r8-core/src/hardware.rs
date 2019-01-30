@@ -47,6 +47,10 @@ impl Hardware {
         self.sound_timer = if self.sound_timer > 0 { self.sound_timer - 1 } else { 0 };
     }
 
+    pub fn get_current_instruction_bytes(&mut self) -> (u8, u8) {
+        (self.memory[self.program_counter as usize], self.memory[self.program_counter as usize + 1])
+    }
+
     fn load_fonts(&mut self) {
         let zero = [0xf0, 0x90, 0x90, 0x90, 0xf0];
         let one = [0x20, 0x60, 0x20, 0x20, 0x70];
