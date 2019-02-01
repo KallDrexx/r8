@@ -16,15 +16,31 @@ const ADDRESS_SPACE_START_X: u32 = 550 + ADDRESS_SPACE_BORDER_THICKNESS;
 const ADDRESS_SPACE_START_Y: u32 = 0 + ADDRESS_SPACE_BORDER_THICKNESS;
 const ADDRESS_DISPLAY_COUNT: u32 = 23;
 
-pub fn render(window: &mut RenderWindow, hardware: &Hardware, font: &Font) {
+pub struct RenderState {
+    lowest_visible_address: u16,
+    highest_visible_address: u16,
+}
+
+impl RenderState {
+    pub fn new() -> Self {
+        RenderState {
+            lowest_visible_address: 512,
+            highest_visible_address: 512 + ADDRESS_DISPLAY_COUNT as u16,
+        }
+    }
+}
+
+pub fn render(window: &mut RenderWindow, hardware: &Hardware, font: &Font, mut last_render_state: RenderState) -> RenderState {
     window.set_active(true);
     window.clear(&Color::BLACK);
 
     render_framebuffer(window, &hardware);
     render_registers(window, &hardware, font);
-    render_assembly_display(window, hardware, font);
+    render_assembly_display(window, hardware, font, &mut last_render_state);
 
     window.display();
+
+    last_render_state
 }
 
 fn render_framebuffer(window: &mut RenderWindow, hardware: &Hardware) {
@@ -106,7 +122,7 @@ fn render_register_value(window: &mut RenderWindow, font: &Font, display: String
     }
 }
 
-fn render_assembly_display(window: &mut RenderWindow, hardware: &Hardware, font: &Font) {
+fn render_assembly_display(window: &mut RenderWindow, hardware: &Hardware, font: &Font, render_state: &mut RenderState) {
     const FONT_SIZE: u32 = 20;
     const FONT_SPACING: f32 = 5.0;
 
@@ -122,10 +138,21 @@ fn render_assembly_display(window: &mut RenderWindow, hardware: &Hardware, font:
     shape.set_outline_thickness(PLAY_AREA_THICKNESS as f32);
     window.draw(&shape);
 
-    let first_memory_address = match hardware.program_counter {
-        x if x - 6 <= 512 => 512,
-        x if x + 6 >= 4094 => 4095 - ADDRESS_DISPLAY_COUNT * 2,
-        x => x as u32,
+    let first_memory_address = if render_state.lowest_visible_address % 2 != hardware.program_counter % 2 {
+        // We changed even vs odd, so reset boundaries
+        hardware.program_counter
+    } else if render_state.lowest_visible_address > hardware.program_counter {
+        // new location is outside the previous boundary
+        hardware.program_counter
+    } else if render_state.highest_visible_address < hardware.program_counter {
+        // new location is outside the previous boundary
+        hardware.program_counter
+    } else if render_state.highest_visible_address - hardware.program_counter < 3 {
+        // Make sure we always have a buffer between the current instruction and the next
+        hardware.program_counter + ADDRESS_DISPLAY_COUNT as u16 - 3
+    } else {
+        // We are still in range, so keep the same range
+        render_state.lowest_visible_address
     };
 
     for x in 0..ADDRESS_DISPLAY_COUNT {
@@ -153,4 +180,7 @@ fn render_assembly_display(window: &mut RenderWindow, hardware: &Hardware, font:
 
         window.draw(&text);
     }
+
+    render_state.lowest_visible_address = first_memory_address;
+    render_state.highest_visible_address = first_memory_address + ADDRESS_DISPLAY_COUNT as u16;
 }

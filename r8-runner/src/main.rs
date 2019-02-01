@@ -13,6 +13,7 @@ use sfml::graphics::{RenderWindow, Font};
 
 use r8_core::Hardware;
 use crate::settings::Settings;
+use crate::rendering::RenderState;
 
 fn main() {
     let settings = Settings::from_cli_arguments();
@@ -33,6 +34,7 @@ fn main() {
     let micro_between_timer_tick = ((1.0 / 60.0) * 1000000.0) as u32;
 
     let mut is_paused = settings.start_paused;
+    let mut render_state = RenderState::new();
     let mut last_instruction_executed_at = Instant::now();
     let mut last_rendered_at = Instant::now();
     let mut last_timer_tick_at = Instant::now();
@@ -77,7 +79,7 @@ fn main() {
 
         let should_render = time_expired(&last_rendered_at, micro_between_renders);
         if should_render {
-            rendering::render(&mut window, &mut hardware, &font);
+            render_state = rendering::render(&mut window, &mut hardware, &font, render_state);
             last_rendered_at = Instant::now();
         }
 
