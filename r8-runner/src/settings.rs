@@ -3,7 +3,8 @@ use clap::App;
 pub struct Settings {
     pub rom_file: String,
     pub start_paused: bool,
-    pub instructions_per_frame: u8,
+    pub instructions_per_second: u16,
+    pub frames_per_second: u8,
 }
 
 impl Settings {
@@ -13,7 +14,8 @@ impl Settings {
         Self {
             rom_file: matches.value_of("INPUT").unwrap().to_owned(),
             start_paused: matches.is_present("paused"),
-            instructions_per_frame: value_t!(matches, "ipf", u8).unwrap_or(1),
+            instructions_per_second: value_t!(matches, "ips", u16).unwrap_or(60 * 5),
+            frames_per_second: value_t!(matches, "fps", u8).unwrap_or(60),
         }
     }
 }

@@ -10,8 +10,11 @@ args:
       short: p
       long: start-paused
       takes_value: false
-  - ipf:
-      help: Number of instructions to execute per frame
-      long: ipf
-      short: f
+  - ips:
+      help: Number of instructions to execute per second
+      long: ips
+      takes_value: true
+  - fps:
+      help: Number of frames per second to update the display
+      long: fps
       takes_value: true
