@@ -6,7 +6,6 @@ mod rendering;
 mod settings;
 mod roms;
 
-use std::{cmp, thread};
 use std::time::{Duration, Instant};
 use sfml::window::{Event, Style, Key};
 use sfml::graphics::{RenderWindow, Font};
@@ -29,15 +28,20 @@ fn main() {
     println!("Instructions per second: {}", settings.instructions_per_second);
     println!("Frames per second: {}", settings.frames_per_second);
 
-    let micros_between_instructions = ((1.0 / settings.instructions_per_second as f32) * 1000000.0) as u32;
-    let micro_between_renders = ((1.0 / settings.frames_per_second as f32) * 1000000.0) as u32;
-    let micro_between_timer_tick = ((1.0 / 60.0) * 1000000.0) as u32;
+    let tick_hz = 100 as f32;
+    let tick_micro = 1000 as f32 / tick_hz;
+    let instruction_micro = 1000 as f32 / settings.instructions_per_second as f32;
+
+    let render_tick_rate = Duration::from_micros((1000 as f32 / settings.frames_per_second as f32) as u64);
+    let timer_tick_rate = Duration::from_micros((1000 as f32 / 60 as f32) as u64);
+    let instruction_tick_rate = Duration::from_micros(tick_micro as u64);
+    let instructions_per_tick = (tick_micro / instruction_micro).round() as u32;
 
     let mut is_paused = settings.start_paused;
     let mut render_state = RenderState::new();
-    let mut last_instruction_executed_at = Instant::now();
     let mut last_rendered_at = Instant::now();
     let mut last_timer_tick_at = Instant::now();
+    let mut last_instruction_at = Instant::now();
 
     while window.is_open() {
         while let Some(event) = window.poll_event() {
@@ -49,9 +53,6 @@ fn main() {
                         // Unmapped key was pressed, so see if this is a non-chip8 key
                         if code == Key::Space {
                             is_paused = !is_paused;
-
-                            // If we are no longer paused, make sure we reset the instruction timer
-                            last_instruction_executed_at = Instant::now();
                         }
                         else if code == Key::Return && is_paused {
                             // Since we are paused, enter being pressed means execute one instruction
@@ -65,40 +66,25 @@ fn main() {
             }
         }
 
-        let should_run_instruction = time_expired(&last_instruction_executed_at, micros_between_instructions);
-        if !is_paused && should_run_instruction {
-            execute_next_instruction(&mut hardware);
-            last_instruction_executed_at = Instant::now();
+
+        if !is_paused && last_instruction_at.elapsed() >= instruction_tick_rate {
+            for _ in 0..instructions_per_tick {
+                execute_next_instruction(&mut hardware);
+            }
+
+            last_instruction_at = Instant::now();
         }
 
-        let should_tick = time_expired(&last_timer_tick_at, micro_between_timer_tick);
-        if should_tick {
+        if last_timer_tick_at.elapsed() >= timer_tick_rate{
             hardware.simulate_timer_tick();
             last_timer_tick_at = Instant::now();
         }
 
-        let should_render = time_expired(&last_rendered_at, micro_between_renders);
-        if should_render {
+        if last_rendered_at.elapsed() >= render_tick_rate {
             render_state = rendering::render(&mut window, &mut hardware, &font, render_state);
             last_rendered_at = Instant::now();
         }
-
-        let now = Instant::now();
-        let micro_till_next_render = (now - last_rendered_at).subsec_micros();
-        let micro_till_next_instruction = (now - last_instruction_executed_at).subsec_micros();
-        let micro_till_next_timer_tick = (now - last_instruction_executed_at).subsec_micros();
-        let sleep_time = cmp::min(micro_till_next_instruction, cmp::min(micro_till_next_timer_tick, micro_till_next_render));
-        thread::sleep(Duration::from_micros(sleep_time as u64));
     }
-}
-
-fn time_expired(start_time: &Instant, duration_in_microseconds: u32) -> bool {
-    let elapsed = start_time.elapsed();
-
-    // Shouldn't have overflow issues unless a time is really off
-    let elapsed_microseconds = elapsed.as_secs() * 1000000 + elapsed.subsec_micros() as u64;
-
-    return elapsed_microseconds >= duration_in_microseconds as u64;
 }
 
 fn execute_next_instruction(hardware: &mut Hardware) {
