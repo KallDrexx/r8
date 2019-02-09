@@ -125,6 +125,7 @@ fn render_register_value(window: &mut RenderWindow, font: &Font, display: String
 fn render_assembly_display(window: &mut RenderWindow, hardware: &Hardware, font: &Font, render_state: &mut RenderState) {
     const FONT_SIZE: u32 = 20;
     const FONT_SPACING: f32 = 5.0;
+    const MIN_HIGH_ADDRESS_BUFFER: u16 = 3;
 
     // border
     let height = window.size().y - ADDRESS_SPACE_START_Y - ADDRESS_SPACE_BORDER_THICKNESS * 2;
@@ -147,9 +148,10 @@ fn render_assembly_display(window: &mut RenderWindow, hardware: &Hardware, font:
     } else if render_state.highest_visible_address < hardware.program_counter {
         // new location is outside the previous boundary
         hardware.program_counter
-    } else if render_state.highest_visible_address - hardware.program_counter < 3 {
+    } else if render_state.highest_visible_address - hardware.program_counter < MIN_HIGH_ADDRESS_BUFFER * 2 {
         // Make sure we always have a buffer between the current instruction and the next
-        hardware.program_counter + ADDRESS_DISPLAY_COUNT as u16 - 3
+        let gap = (render_state.highest_visible_address - hardware.program_counter) / 2;
+        render_state.lowest_visible_address + (gap * 2)
     } else {
         // We are still in range, so keep the same range
         render_state.lowest_visible_address
@@ -182,7 +184,7 @@ fn render_assembly_display(window: &mut RenderWindow, hardware: &Hardware, font:
     }
 
     render_state.lowest_visible_address = first_memory_address;
-    render_state.highest_visible_address = first_memory_address + ADDRESS_DISPLAY_COUNT as u16;
+    render_state.highest_visible_address = first_memory_address + (ADDRESS_DISPLAY_COUNT as u16 * 2);
 }
 
 fn render_next_sprite_display(window: &mut RenderWindow, hardware: &Hardware, font: &Font) {

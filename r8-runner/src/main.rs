@@ -33,7 +33,7 @@ fn main() {
     let mut is_paused = settings.start_paused;
     let mut render_state = RenderState::new();
     let mut last_step_at = Instant::now();
-    let time_between_held_steps = Duration::from_millis(100);
+    let time_between_held_steps = Duration::from_millis(10);
 
     let mut history_stack = Vec::with_capacity(10);
 
@@ -72,6 +72,11 @@ fn main() {
                                 last_instruction_at = Instant::now();
                                 history_stack.clear();
                             }
+                        } else if code == Key::Escape {
+                            println!("Reloading ROM");
+                            hardware = Hardware::new();
+                            history_stack.clear();
+                            roms::load_from_file(&mut hardware, &settings).unwrap();
                         }
                     }
                 }
