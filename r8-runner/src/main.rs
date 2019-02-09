@@ -101,7 +101,7 @@ fn main() {
             hardware.simulate_timer_tick();
         }
 
-        render_state = rendering::render(&mut window, &mut hardware, &font, render_state);
+        render_state = rendering::render(&mut window, &mut hardware, &font, render_state, is_paused);
     }
 }
 

@@ -13,8 +13,8 @@ const PIXEL_OFF_COLOR: &Color = &Color {r: 115, g: 130, b: 92, a: 255};
 const REGISTER_START_Y: u32 = 300;
 const ADDRESS_SPACE_BORDER_THICKNESS: u32 = 5;
 const ADDRESS_SPACE_START_X: u32 = 550 + ADDRESS_SPACE_BORDER_THICKNESS;
-const ADDRESS_SPACE_START_Y: u32 = 0 + ADDRESS_SPACE_BORDER_THICKNESS;
-const ADDRESS_DISPLAY_COUNT: u32 = 23;
+const ADDRESS_SPACE_START_Y: u32 = 30 + ADDRESS_SPACE_BORDER_THICKNESS;
+const ADDRESS_DISPLAY_COUNT: u32 = 22;
 const SPRITE_DISPLAY_START_X: u32 = 400;
 const SPRITE_DISPLAY_START_Y: u32 = 300;
 
@@ -32,13 +32,13 @@ impl RenderState {
     }
 }
 
-pub fn render(window: &mut RenderWindow, hardware: &Hardware, font: &Font, mut last_render_state: RenderState) -> RenderState {
+pub fn render(window: &mut RenderWindow, hardware: &Hardware, font: &Font, mut last_render_state: RenderState, is_paused: bool) -> RenderState {
     window.set_active(true);
     window.clear(&Color::BLACK);
 
     render_framebuffer(window, &hardware);
     render_registers(window, &hardware, font);
-    render_assembly_display(window, hardware, font, &mut last_render_state);
+    render_assembly_display(window, hardware, font, &mut last_render_state, is_paused);
     render_next_sprite_display(window, hardware, font);
 
     window.display();
@@ -122,22 +122,19 @@ fn render_register_value(window: &mut RenderWindow, font: &Font, display: String
     }
 }
 
-fn render_assembly_display(window: &mut RenderWindow, hardware: &Hardware, font: &Font, render_state: &mut RenderState) {
+fn render_assembly_display(window: &mut RenderWindow, hardware: &Hardware, font: &Font, render_state: &mut RenderState, is_paused: bool) {
     const FONT_SIZE: u32 = 20;
     const FONT_SPACING: f32 = 5.0;
     const MIN_HIGH_ADDRESS_BUFFER: u16 = 3;
 
-    // border
-    let height = window.size().y - ADDRESS_SPACE_START_Y - ADDRESS_SPACE_BORDER_THICKNESS * 2;
-    let width = window.size().x - ADDRESS_SPACE_START_X;
+    if is_paused {
+        let mut text = Text::new("DEBUGGING", &font, FONT_SIZE);
+        text.set_fill_color(&Color::RED);
 
-    let mut shape = RectangleShape::new();
-    shape.set_size(Vector2f::new(width as f32, height as f32));
-    shape.set_position(Vector2f::new(ADDRESS_SPACE_START_X as f32, ADDRESS_SPACE_START_Y as f32));
-    shape.set_fill_color(&Color::BLACK);
-    shape.set_outline_color(&Color::BLUE);
-    shape.set_outline_thickness(PLAY_AREA_THICKNESS as f32);
-    window.draw(&shape);
+        let text_x = ADDRESS_SPACE_START_X as f32;
+        text.set_position(Vector2f::new(text_x, 0.0));
+        window.draw(&text);
+    }
 
     let first_memory_address = if render_state.lowest_visible_address % 2 != hardware.program_counter % 2 {
         // We changed even vs odd, so reset boundaries
@@ -157,6 +154,7 @@ fn render_assembly_display(window: &mut RenderWindow, hardware: &Hardware, font:
         render_state.lowest_visible_address
     };
 
+    let width = window.size().x - ADDRESS_SPACE_START_X - ADDRESS_SPACE_BORDER_THICKNESS;
     for x in 0..ADDRESS_DISPLAY_COUNT {
         let address = first_memory_address as usize + (x * 2) as usize;
 
