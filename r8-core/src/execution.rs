@@ -87,7 +87,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
 
                 // If we are affecting pixels across column set boundaries, repeat for the next byte
                 if shift_amount > 0 {
-                    let right_byte = (sprite_byte & 0b00000011) << 8 - shift_amount;
+                    let right_byte = sprite_byte << 8 - shift_amount;
 
                     if hardware.framebuffer[row][right_column_set] & right_byte > 0 {
                         collisions_found = true;
