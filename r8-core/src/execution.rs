@@ -279,7 +279,7 @@ pub fn execute_instruction(instruction: Instruction, hardware: &mut Hardware) ->
             let will_underflow = hardware.gen_registers[minuend_reg as usize] < hardware.gen_registers[subtrahend_reg as usize];
             let difference = hardware.gen_registers[minuend_reg as usize].wrapping_sub(hardware.gen_registers[subtrahend_reg as usize]);
             hardware.gen_registers[stored_in_reg as usize] = difference;
-            hardware.gen_registers[0xf] = if will_underflow { 1 } else { 0 };
+            hardware.gen_registers[0xf] = if will_underflow { 0 } else { 1 };
             hardware.program_counter += 2;
         }
 
@@ -963,7 +963,7 @@ mod tests {
         assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
         assert_eq!(hardware.gen_registers[4], 75, "Incorrect V4 register");
         assert_eq!(hardware.gen_registers[5], 25, "Incorrect V5 register");
-        assert_eq!(hardware.gen_registers[0xf], 0, "Incorrect VF register");
+        assert_eq!(hardware.gen_registers[0xf], 1, "Incorrect VF register");
     }
 
     #[test]
@@ -983,7 +983,7 @@ mod tests {
         assert_eq!(hardware.program_counter, 1002, "Incorrect program counter");
         assert_eq!(hardware.gen_registers[4], 100, "Incorrect V4 register");
         assert_eq!(hardware.gen_registers[5], 181, "Incorrect V5 register");
-        assert_eq!(hardware.gen_registers[0xf], 1, "Incorrect VF register");
+        assert_eq!(hardware.gen_registers[0xf], 0, "Incorrect VF register");
     }
 
     #[test]
