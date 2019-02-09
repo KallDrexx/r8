@@ -49,6 +49,7 @@ fn main() {
                                 history_stack.push(hardware.clone());
 
                                 execute_next_instruction(&mut hardware);
+                                hardware.key_released_since_last_instruction = None;
 
                                 hardware.simulate_timer_tick(); // Since we are paused, a step should simulate a frame tick
                                 last_step_at = Instant::now();
@@ -85,6 +86,7 @@ fn main() {
 
             for _ in 0..instructions_since_last_frame {
                 execute_next_instruction(&mut hardware);
+                hardware.key_released_since_last_instruction = None;
             }
 
             last_instruction_at = Instant::now();
