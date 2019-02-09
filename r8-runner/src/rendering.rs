@@ -1,4 +1,4 @@
-use r8_core::Hardware;
+use r8_core::{Hardware, Instruction};
 
 use sfml::system::Vector2f;
 use sfml::graphics::{RenderWindow, Color, RenderTarget, Font, Text};
@@ -15,6 +15,8 @@ const ADDRESS_SPACE_BORDER_THICKNESS: u32 = 5;
 const ADDRESS_SPACE_START_X: u32 = 550 + ADDRESS_SPACE_BORDER_THICKNESS;
 const ADDRESS_SPACE_START_Y: u32 = 0 + ADDRESS_SPACE_BORDER_THICKNESS;
 const ADDRESS_DISPLAY_COUNT: u32 = 23;
+const SPRITE_DISPLAY_START_X: u32 = 400;
+const SPRITE_DISPLAY_START_Y: u32 = 300;
 
 pub struct RenderState {
     lowest_visible_address: u16,
@@ -37,6 +39,7 @@ pub fn render(window: &mut RenderWindow, hardware: &Hardware, font: &Font, mut l
     render_framebuffer(window, &hardware);
     render_registers(window, &hardware, font);
     render_assembly_display(window, hardware, font, &mut last_render_state);
+    render_next_sprite_display(window, hardware, font);
 
     window.display();
 
@@ -110,12 +113,9 @@ fn render_registers(window: &mut RenderWindow, hardware: &Hardware, font: &Font)
 }
 
 fn render_register_value(window: &mut RenderWindow, font: &Font, display: String, current_x: &mut u32, current_y: &mut u32) {
-    let mut text = Text::new(display.as_ref(), &font, 25);
-    text.set_position(Vector2f::new(*current_x as f32, *current_y as f32));
-    window.draw(&text);
+    draw_text(window, font, 25, display.as_ref(), *current_x as f32, *current_y as f32);
 
     *current_y += 30;
-
     if *current_y + 25 > 600 {
         *current_y = REGISTER_START_Y;
         *current_x += 125;
@@ -183,4 +183,31 @@ fn render_assembly_display(window: &mut RenderWindow, hardware: &Hardware, font:
 
     render_state.lowest_visible_address = first_memory_address;
     render_state.highest_visible_address = first_memory_address + ADDRESS_DISPLAY_COUNT as u16;
+}
+
+fn render_next_sprite_display(window: &mut RenderWindow, hardware: &Hardware, font: &Font) {
+    const FONT_SIZE: u32 = 17;
+    const Y_SPACING: f32 = 0.0;
+
+    let (byte1, byte2) = hardware.get_current_instruction_bytes();
+    if let Instruction::DrawSprite {x_register: _, y_register: _, height} = r8_core::get_instruction(byte1, byte2) {
+        let start_memory_address = hardware.i_register;
+        let mut current_y = SPRITE_DISPLAY_START_Y as f32;
+
+        draw_text(window, font, FONT_SIZE, "Next Sprite:", SPRITE_DISPLAY_START_X as f32, current_y);
+        current_y += Y_SPACING + FONT_SIZE as f32;
+
+        for x in 0..height {
+            let value = hardware.memory[start_memory_address as usize + x as usize];
+            let display = format!("{:0>2x}: {:0>8b}", x, value);
+            draw_text(window, font, FONT_SIZE, display.as_ref(), SPRITE_DISPLAY_START_X as f32, current_y);
+            current_y += Y_SPACING + FONT_SIZE as f32;
+        }
+    }
+}
+
+fn draw_text(window: &mut RenderWindow, font: &Font, font_size: u32, string: &str, x: f32, y: f32) {
+    let mut text = Text::new(string, &font, font_size);
+    text.set_position(Vector2f::new(x, y));
+    window.draw(&text);
 }

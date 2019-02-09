@@ -47,7 +47,7 @@ impl Hardware {
         self.sound_timer = if self.sound_timer > 0 { self.sound_timer - 1 } else { 0 };
     }
 
-    pub fn get_current_instruction_bytes(&mut self) -> (u8, u8) {
+    pub fn get_current_instruction_bytes(&self) -> (u8, u8) {
         (self.memory[self.program_counter as usize], self.memory[self.program_counter as usize + 1])
     }
 
