@@ -22,7 +22,6 @@ fn main() {
 
     let font = Font::from_file("cour.ttf").unwrap();
     let mut window = RenderWindow::new((800, 600), "R8 Runner - Chip 8", Style::CLOSE, &Default::default());
-    //window.set_vertical_sync_enabled(true);
 
     println!("Starting paused: {}", settings.start_paused);
     println!("Instructions per second: {}", settings.instructions_per_second);
@@ -43,6 +42,8 @@ fn main() {
     let mut last_timer_tick_at = Instant::now();
     let mut last_instruction_at = Instant::now();
 
+    let mut history_stack = Vec::with_capacity(10);
+
     while window.is_open() {
         while let Some(event) = window.poll_event() {
             match event {
@@ -53,12 +54,19 @@ fn main() {
                         // Unmapped key was pressed, so see if this is a non-chip8 key
                         if code == Key::Space {
                             is_paused = !is_paused;
-                        }
-                        else if code == Key::Return && is_paused {
+
+                            if !is_paused {
+                                history_stack.clear();
+                            }
+                        } else if code == Key::Return && is_paused {
+                            history_stack.push(hardware.clone());
+
                             // Since we are paused, enter being pressed means execute one instruction
                             execute_next_instruction(&mut hardware);
 
                             hardware.simulate_timer_tick(); // Since we are paused, a step should simulate a frame tick
+                        } else if code == Key::BackSpace && is_paused && history_stack.len() > 0 {
+                            hardware = history_stack.pop().unwrap();
                         }
                     }
                 }

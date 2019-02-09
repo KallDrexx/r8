@@ -6,6 +6,7 @@ pub const MEMORY_SIZE: usize = 0xFFF;
 pub const FRAMEBUFFER_WIDTH: usize = 64;
 pub const FRAMEBUFFER_HEIGHT: usize = 32;
 
+#[derive(Clone)]
 pub struct Hardware {
     pub memory: [u8; MEMORY_SIZE],
     pub gen_registers: [u8; 16],
