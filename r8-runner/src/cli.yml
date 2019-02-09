@@ -14,7 +14,3 @@ args:
       help: Number of instructions to execute per second
       long: ips
       takes_value: true
-  - fps:
-      help: Number of frames per second to update the display
-      long: fps
-      takes_value: true

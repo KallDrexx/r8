@@ -69,7 +69,7 @@ impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Instruction::Unknown => write!(f, "Unknown Instruction"),
-            Instruction::AddFromValue {register, value} => write!(f, "ADD {}, {}", register, value),
+            Instruction::AddFromValue {register, value} => write!(f, "ADD {}, {:x}", register, value),
             Instruction::AddFromRegister {register1, register2} => write!(f, "ADD {}, {}", register1, register2),
             Instruction::Call {address} => write!(f, "CALL {:x}", address),
             Instruction::ClearDisplay => write!(f, "CLS"),

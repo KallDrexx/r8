@@ -6,7 +6,7 @@ mod rendering;
 mod settings;
 mod roms;
 
-use std::time::{Duration, Instant};
+use std::time::{Instant};
 use sfml::window::{Event, Style, Key};
 use sfml::graphics::{RenderWindow, Font};
 
@@ -22,25 +22,16 @@ fn main() {
 
     let font = Font::from_file("cour.ttf").unwrap();
     let mut window = RenderWindow::new((800, 600), "R8 Runner - Chip 8", Style::CLOSE, &Default::default());
+    window.set_framerate_limit(60);
 
     println!("Starting paused: {}", settings.start_paused);
-    println!("Instructions per second: {}", settings.instructions_per_second);
-    println!("Frames per second: {}", settings.frames_per_second);
+    println!("Instructions Per Second: {}", settings.instructions_per_second);
 
-    let tick_hz = 100 as f32;
-    let tick_micro = 1000 as f32 / tick_hz;
-    let instruction_micro = 1000 as f32 / settings.instructions_per_second as f32;
-
-    let render_tick_rate = Duration::from_micros((1000 as f32 / settings.frames_per_second as f32) as u64);
-    let timer_tick_rate = Duration::from_micros((1000 as f32 / 60 as f32) as u64);
-    let instruction_tick_rate = Duration::from_micros(tick_micro as u64);
-    let instructions_per_tick = (tick_micro / instruction_micro).round() as u32;
+    let instruction_micro = 1_000_000 as f32 / settings.instructions_per_second as f32;
+    let mut last_instruction_at = Instant::now();
 
     let mut is_paused = settings.start_paused;
     let mut render_state = RenderState::new();
-    let mut last_rendered_at = Instant::now();
-    let mut last_timer_tick_at = Instant::now();
-    let mut last_instruction_at = Instant::now();
 
     let mut history_stack = Vec::with_capacity(10);
 
@@ -56,6 +47,7 @@ fn main() {
                             is_paused = !is_paused;
 
                             if !is_paused {
+                                last_instruction_at = Instant::now();
                                 history_stack.clear();
                             }
                         } else if code == Key::Return && is_paused {
@@ -74,24 +66,23 @@ fn main() {
             }
         }
 
+        if !is_paused {
+            let time_since_last_instruction = Instant::now() - last_instruction_at;
+            let duration_micro = time_since_last_instruction.as_secs() * 1_000_000 + time_since_last_instruction.subsec_micros() as u64;
+            let instructions_since_last_frame = duration_micro / instruction_micro as u64;
 
-        if !is_paused && last_instruction_at.elapsed() >= instruction_tick_rate {
-            for _ in 0..instructions_per_tick {
+            for _ in 0..instructions_since_last_frame {
                 execute_next_instruction(&mut hardware);
             }
 
             last_instruction_at = Instant::now();
         }
 
-        if last_timer_tick_at.elapsed() >= timer_tick_rate{
+        if !is_paused {
             hardware.simulate_timer_tick();
-            last_timer_tick_at = Instant::now();
         }
 
-        if last_rendered_at.elapsed() >= render_tick_rate {
-            render_state = rendering::render(&mut window, &mut hardware, &font, render_state);
-            last_rendered_at = Instant::now();
-        }
+        render_state = rendering::render(&mut window, &mut hardware, &font, render_state);
     }
 }
 
