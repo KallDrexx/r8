@@ -6,7 +6,7 @@ mod rendering;
 mod settings;
 mod roms;
 
-use std::time::{Instant};
+use std::time::{Duration, Instant};
 use sfml::window::{Event, Style, Key};
 use sfml::graphics::{RenderWindow, Font};
 
@@ -32,6 +32,8 @@ fn main() {
 
     let mut is_paused = settings.start_paused;
     let mut render_state = RenderState::new();
+    let mut last_step_at = Instant::now();
+    let time_between_held_steps = Duration::from_millis(100);
 
     let mut history_stack = Vec::with_capacity(10);
 
@@ -39,7 +41,26 @@ fn main() {
         while let Some(event) = window.poll_event() {
             match event {
                 Event::Closed => window.close(),
-                Event::KeyPressed {code, alt: _, ctrl: _, shift: _, system: _} => handle_key_pressed(&mut hardware, code),
+                Event::KeyPressed {code, alt: _, ctrl: _, shift: _, system: _} => {
+                    if !handle_key_pressed(&mut hardware, code) {
+                        if code == Key::Return && is_paused {
+                            // Since we are paused, enter being pressed means execute one instruction
+                            if Instant::now() - last_step_at >= time_between_held_steps {
+                                history_stack.push(hardware.clone());
+
+                                execute_next_instruction(&mut hardware);
+
+                                hardware.simulate_timer_tick(); // Since we are paused, a step should simulate a frame tick
+                                last_step_at = Instant::now();
+                            }
+                        } else if code == Key::BackSpace && is_paused && history_stack.len() > 0 {
+                            if Instant::now() - last_step_at >= time_between_held_steps {
+                                hardware = history_stack.pop().unwrap();
+                                last_step_at = Instant::now();
+                            }
+                        }
+                    }
+                },
                 Event::KeyReleased {code, alt: _, ctrl: _, shift: _, system: _} => {
                     if !handle_key_released(&mut hardware, code) {
                         // Unmapped key was pressed, so see if this is a non-chip8 key
@@ -50,15 +71,6 @@ fn main() {
                                 last_instruction_at = Instant::now();
                                 history_stack.clear();
                             }
-                        } else if code == Key::Return && is_paused {
-                            history_stack.push(hardware.clone());
-
-                            // Since we are paused, enter being pressed means execute one instruction
-                            execute_next_instruction(&mut hardware);
-
-                            hardware.simulate_timer_tick(); // Since we are paused, a step should simulate a frame tick
-                        } else if code == Key::BackSpace && is_paused && history_stack.len() > 0 {
-                            hardware = history_stack.pop().unwrap();
                         }
                     }
                 }
@@ -92,10 +104,14 @@ fn execute_next_instruction(hardware: &mut Hardware) {
     r8_core::execute_instruction(instruction, hardware).unwrap();
 }
 
-fn handle_key_pressed(hardware: &mut Hardware, key: Key) {
+fn handle_key_pressed(hardware: &mut Hardware, key: Key) -> bool {
     match get_key_value(key) {
-        Some(x) => hardware.current_key_down = Some(x),
-        None => (),
+        Some(x) => {
+            hardware.current_key_down = Some(x);
+            true
+        },
+
+        None => false,
     }
 }
 
