@@ -230,7 +230,7 @@ pub fn get_instruction(byte1: u8, byte2: u8) -> Instruction {
             }
         },
 
-        _ => Instruction::Unknown
+        _ => Instruction::Unknown {bytes: ((byte1 as u16) << 8) + byte2 as u16 },
     }
 }
 

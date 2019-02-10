@@ -22,7 +22,7 @@ pub enum Register {
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum Instruction {
-    Unknown,
+    Unknown { bytes: u16 },
     AddFromValue { register: Register, value: u8 },
     AddFromRegister { register1: Register, register2: Register },
     Call { address: u16 },
@@ -68,7 +68,7 @@ impl fmt::Display for Register {
 impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Instruction::Unknown => write!(f, "Unknown Instruction"),
+            Instruction::Unknown {bytes} => write!(f, "UNK 0x{:0>4x}", bytes),
             Instruction::AddFromValue {register, value} => write!(f, "ADD {}, {:x}", register, value),
             Instruction::AddFromRegister {register1, register2} => write!(f, "ADD {}, {}", register1, register2),
             Instruction::Call {address} => write!(f, "CALL {:x}", address),
