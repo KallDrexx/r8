@@ -15,6 +15,8 @@ use crate::settings::Settings;
 use crate::rendering::RenderState;
 
 fn main() {
+    println!("{}", std::env::current_dir().unwrap().display());
+
     let settings = Settings::from_cli_arguments();
 
     let mut hardware = Hardware::new();
