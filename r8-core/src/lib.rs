@@ -4,15 +4,17 @@ extern crate rand;
 mod hardware;
 mod parser;
 mod execution;
+mod serializer;
 
 use std::fmt;
 
 pub use hardware::Hardware;
 pub use parser::get_instruction;
 pub use execution::execute_instruction;
+pub use serializer::serialize_instruction;
 
 // Info sourced from http://devernay.free.fr/hacks/chip8/C8TECH10.HTM#Fx33
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub enum Register {
     General(u8),
     I,
@@ -20,38 +22,38 @@ pub enum Register {
     DelayTimer,
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub enum Instruction {
-    Unknown { bytes: u16 },
-    AddFromValue { register: Register, value: u8 },
     AddFromRegister { register1: Register, register2: Register },
+    AddFromValue { register: Register, value: u8 },
+    And { register1: Register, register2: Register },
     Call { address: u16 },
     ClearDisplay,
+    DrawSprite { x_register: Register, y_register: Register, height: u8 },
     JumpToAddress { address: u16, add_register_0: bool },
     JumpToMachineCode { address: u16 },
-    LoadFromValue { destination: Register, value: u8 },
-    LoadFromRegister { destination: Register, source: Register },
-    LoadFromKeyPress { destination: Register },
-    LoadSpriteLocation { sprite_digit: Register },
-    LoadBcdValue { source: Register },
-    LoadIntoMemory { last_register: Register },
-    LoadFromMemory { last_register: Register },
     LoadAddressIntoIRegister { address: u16 },
+    LoadBcdValue { source: Register },
+    LoadFromKeyPress { destination: Register },
+    LoadFromMemory { last_register: Register },
+    LoadFromRegister { destination: Register, source: Register },
+    LoadFromValue { destination: Register, value: u8 },
+    LoadIntoMemory { last_register: Register },
+    LoadSpriteLocation { sprite_digit: Register },
+    Or { register1: Register, register2: Register },
     Return,
+    SetRandom { register: Register, and_value: u8 },
+    ShiftLeft { register: Register},
+    ShiftRight { register: Register },
     SkipIfEqual { register: Register, value: u8 },
+    SkipIfKeyNotPressed { register: Register },
+    SkipIfKeyPressed { register: Register },
     SkipIfNotEqual { register: Register, value: u8 },
     SkipIfRegistersEqual { register1: Register, register2: Register },
     SkipIfRegistersNotEqual { register1: Register, register2: Register },
-    SkipIfKeyPressed { register: Register },
-    SkipIfKeyNotPressed { register: Register },
     Subtract { minuend: Register, subtrahend: Register, stored_in: Register },
-    Or { register1: Register, register2: Register },
-    And { register1: Register, register2: Register },
+    Unknown { bytes: u16 },
     Xor { register1: Register, register2: Register },
-    ShiftRight { register: Register },
-    ShiftLeft { register: Register},
-    SetRandom { register: Register, and_value: u8 },
-    DrawSprite { x_register: Register, y_register: Register, height: u8 },
 }
 
 impl fmt::Display for Register {

@@ -1,6 +1,6 @@
 use custom_error::custom_error;
-use ::{Hardware, Instruction, Register};
-use ::hardware::{STACK_SIZE, MEMORY_SIZE, FRAMEBUFFER_HEIGHT, FRAMEBUFFER_WIDTH};
+use crate::{Hardware, Instruction, Register};
+use crate::hardware::{STACK_SIZE, MEMORY_SIZE, FRAMEBUFFER_HEIGHT, FRAMEBUFFER_WIDTH};
 
 custom_error!{pub ExecutionError
     InvalidRegisterForInstruction {instruction:Instruction} = "Invalid register was used for instruction: {instruction}",
